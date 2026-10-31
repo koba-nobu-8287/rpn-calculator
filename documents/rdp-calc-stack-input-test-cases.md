@@ -1,8 +1,8 @@
 # rdp-calc スタック・入力 単体テスト仕様
 
-版：SI-1.0 / 2026-10-31 / 基準develop：`25bb2dea3fcb3162868e22cca5b5334c8375f4d6`
+版：SI-1.1 / 2026-10-31 / 基準develop：`eecb806`（旧SI-1.0のfixtureを継承）
 
-対応：[詳細設計](rdp-calc-stack-input-detailed-design.md)、[v0.5](rdp-calc-detailed-design.md)。本書は実行結果ではなく、実装時のfixture仕様。現リポジトリのRustはHello worldのみで既存の実行可能なテストはない。既存TEST番号はv0.5の試験仕様を指す。
+対応：[詳細設計](rdp-calc-stack-input-detailed-design.md)、[詳細設計v0.6](rdp-calc-detailed-design.md)。本書は実行結果ではなく、実装時のfixture仕様。現リポジトリのRustはHello worldのみで既存の実行可能なテストはない。既存TEST番号はv0.5の試験仕様を指す。
 
 ## 1. 共通fixtureと表の読み方
 
@@ -57,7 +57,7 @@
 | SI-T029 Float Idle CHS | [5,2,3,4]/9 | Float、I_D | CHS | [-5,2,3,4]/9 | I_E | K | V5-H/CE p.100導出 | P0 |
 | SI-T030 Float負0 | [0,2,3,4]/9 | Float、E_D("0") | CHS | [-0.0,2,3,4]/9 | E_D("-0") | K | V5 f64編集、HP未確認 | P1 |
 | SI-T031 点から開始 | [8,2,3,4]/9 | Float、I_E | 点,digit("5") | [0.5,8,2,3]/9 | E_E("0.5") | K | V5暫定、017 | P1 |
-| SI-T032 重複点 | [1.2,2,3,4]/9 | Float、E_D("1.2") | 点 | same/9 | E_D("1.2"),Err | K | V5文法、variantはCP-03 | P1 |
+| SI-T032 重複点 | [1.2,2,3,4]/9 | Float、E_D("1.2") | 点 | same/9 | E_D("1.2"),Err | K | V5文法、InputError::InvalidNumber（CP-03確定） | P1 |
 | SI-T033 Integer点 | [1,2,3,4]/9 | E_D("1") | 点 | same/9 | E_D("1"),NumericModeMismatch | K | V5 | P1 |
 | SI-T034 指数と符号 | [1,2,3,4]/9 | Float、E_D("1") | EEX,digit("2"),CHS | [0.01,2,3,4]/9 | E_D("1e-2")/Exp | K | CE p.58、V5、値はf64参照のto_bits | P1 |
 | SI-T035 指数のBS | [0.01,2,3,4]/9 | Float、E_E("1e-2")/Exp | BS,BS,BS | [1,2,3,4]/9 | E_E("1")/Mantissa | K | V5文字削除導出、017未確認 | P1 |
@@ -86,13 +86,13 @@
 | SI-T053 幅縮小／拡大 | [0x1234,0xFF,3,4]/0x1234 | HEX、E_E("1234"),R0=0x5678 | WS8,WS16 | [0x34,0xFF,3,4]/0x34 | I_E,W16,R0=0x78 | K | V5直接API暫定、H32のスタックのみ一致 | P1 |
 | SI-T054 符号形式変更 | [0xFF,2,3,4]/9 | W8、HEX、E_D("FF") | SetSignedMode(Unsigned) | [0xFF,2,3,4]/9 | I_D、Unsigned、X数学値255 | K | V5-H p.35/100 | P1 |
 | SI-T055 Integer→Float | [5,2,3,4]/9 | HEX、E_D("5"),R0=7 | MODE Float | [5.0,2.0,3.0,4.0]/9.0 | Float、DEC、I_D、R0=7.0 | K | V5独自厳密変換 | P1 |
-| SI-T056 変換全体拒否 | [5,2,3,4]/9 | W64 Unsigned、E_E("5"),R0=9007199254740993 | MODE Float | same/9 | Integer、E_E("5"),Err（variant未確定） | K | V5厳密変換、非表現可能なRi | P0 |
+| SI-T056 変換全体拒否 | [5,2,3,4]/9 | W64 Unsigned、E_E("5"),R0=9007199254740993 | MODE Float | same/9 | Integer、E_E("5"),Calculation(IntegerOutOfRange) | K | V5厳密変換、非表現可能なRi | P0 |
 | SI-T057 Float→Integer拒否 | [1.5,2,3,4]/9 | Float、E_D("1.5") | MODE Integer | same/9 | Float、E_D("1.5"),IntegerOutOfRange | K | V5厳密変換、小数切捨て禁止 | P0 |
 | SI-T058 Floatで基数 | [5,2,3,4]/9 | Float、E_E("5") | BASE HEX | same/9 | Float、E_E("5"),NumericModeMismatch | K | V5 API差、CE p.59とは別 | P1 |
 | SI-T059 Floatで同基数 | [5,2,3,4]/9 | Float、E_D("5") | BASE DEC | [5,2,3,4]/9 | Float、I_D | K | V5 | P1 |
 | SI-T060 同mode | [10,2,3,4]/9 | HEX、E_E("A") | MODE Integer | [10,2,3,4]/9 | HEX、I_E | K | V5同mode契約 | P1 |
 
-SI-T056は有限f64になっても精度が失われるケース。V5 §8はこの場合のvariantを明示しないためCP-03で決める。推奨はIntegerOutOfRange（厳密変換の情報欠落）。SI-T057はV5の整数への厳密変換範囲エラー。全状態不変は両方で必須。
+SI-T056は有限f64への精度欠落、SI-T057は非整数の変換拒否で、ともにCalculation(IntegerOutOfRange)。CP-03で確定し全状態不変も検証する。
 
 ## 5. エラー・独自API・全状態検証
 
@@ -121,10 +121,10 @@ SI-T073は符号切替後に指数を編集しても再Liftしない試験であ
 
 | ID・対象 | 初期スタック／L・入力 | 操作 | 現契約／確認済み部分 | 保留する期待状態・flags | 根拠／解決ゲート | 優先度 |
 |---|---|---|---|---|---|---|
-| SI-H001 初回幅外桁 | W1 Unsigned HEX、[1,0,0,0]/0、I_E、flags標準 | digit2 | V5はSI-T050。HPの表示X=0は確認 | HPの他段・Lift・編集状態・flagsは未確認、勝手に補わない | H32脚注、CP-01/TBD-013 | P1 |
-| SI-H002 DEC符号bit | W8 Twos DEC、[12,2,3,4]/9、E_D("12") | digit8 | V5数学値範囲では拒否。HPには符号bit到達の説明あり | DECキー例として128→raw80を確定するには対象例を確認。Lift/flagsも記録 | H32、CP-01/TBD-013 | P1 |
-| SI-H003 負数最終桁削除 | Float、[-1,2,3,4]/9、E_E("-1")、flags標準 | BS | CP-02推奨：[+0,2,3,4]/9、E_E("0")、flags K | **提案期待値**。承認前は製品必須試験にしない。HP動作は別確認 | TBD-021、017 | P1 |
-| SI-H004 複数原因 | Float、[1,2,3,4]/9、E_D("1e")/Exp | BASE HEX | 全状態保持のErrは必須 | NumericModeMismatchかIncompleteEntryか。CP-03では前者を推奨 | TBD-022 | P2 |
+| SI-H001 初回幅外桁 | W1 Unsigned HEX、[1,0,0,0]/0、I_E、flags標準 | digit2 | V5はSI-T050。HPの表示X=0は確認 | HPの他段・Lift・編集状態・flagsは未確認、勝手に補わない | H32脚注、TBD-013（CLI CP-01とは別） | P1 |
+| SI-H002 DEC符号bit | W8 Twos DEC、[12,2,3,4]/9、E_D("12") | digit8 | V5数学値範囲では拒否。HPには符号bit到達の説明あり | DECキー例として128→raw80を確定するには対象例を確認。Lift/flagsも記録 | H32、TBD-013（CLI CP-01とは別） | P1 |
+| SI-H003 負数最終桁削除 | Float、[-1,2,3,4]/9、E_E("-1")、flags標準 | BS | 旧提案（CP-02対象外）：[+0,2,3,4]/9、E_E("0")、flags K | **提案期待値**。承認前は製品必須試験にしない。HP動作は別確認 | TBD-021、017 | P1 |
+| SI-H004 複数原因（移管済み） | Float、E_D("1e") | BASE HEX | CP-03でCalculation(NumericModeMismatch)に確定 | 通常試験IA-G004へ移管、ここでは重複実行しない | TBD-022 Resolved | P0 |
 | SI-H005 HP FLOAT | W64 HEX、[0,0x25E47,3,4]/9、I_D | 実機FLOAT | X=155207.0、Y/Z/T/L=0、W56、Lift Eは過去確認 | 保存領域・f64フラグ対応と新Command未設計。SetNumericModeのテストに流用しない | V5 TEST-072、006 | P1 |
 | SI-H006 HP WSIZE領域 | W16、R0=0x1234,R1=0x5678、スタック任意の合法値 | HP WSIZE32、16 | R0がW32で0x56781234、復元幅で元R0/R1 | 直接SetWordSizeには要求しない。全スタック/Lのfixtureは新Command設計時に追加 | V5 TEST-071、004/014 | P1 |
 | SI-H007 エラー解除キー | 除算失敗画面、コアはSI-T061の状態 | 実機の数字2 | 表示解除は過去確認 | 数字2を計算にも渡すか、解除だけで消費するか未確認 | TBD-012 | P2 |
@@ -164,9 +164,9 @@ SI-T073は符号切替後に指数を編集しても再Liftしない試験であ
 struct TransitionCase {
     id: &'static str,
     initial: TestState,     // 全stack/L/Ri/flags/config/input/part
-    steps: Vec<Command>,
+    steps: Vec<InputEvent>,
     expected: TestState,
-    expected_error: Option<CalcError>,
+    expected_error: Option<SessionError>,
     source: &'static str,
 }
 // TestState / assert_state_bits_equalはテスト支援型・関数。
@@ -174,3 +174,96 @@ struct TransitionCase {
 ```
 
 製品実装後、モジュール内のprivate状態試験と`crates/rdp-core/tests/`の公開API試験を分離して`cargo test -p rdp-core`で実行する。現Cargo.tomlには当該crateがないため、今回このコマンドが通ると主張しない。CLI側はキー列と完成数値Push列を分け、コアfixtureの期待Snapshotを使って検証する。
+
+## 9. IA-1.0移行・追加テスト（現行正本）
+
+製品テストは未実装。以下は実装時の必須仕様であり、テスト実行済みとはしない。旧SI-T001～076のID・数値期待値を維持し、編集fixtureはHpInputSessionへ移設。旧InputDigit/点/EEX/BSはKey、残りはInputEvent::Commandへ変換する。Core fixtureにEntryPhaseを追加しない。InputError5種はSessionError::Input、それ以外はCalculationで比較。SI-T032はInput(InvalidNumber)、SI-T056はCalculation(IntegerOutOfRange)に確定。SI-T024の拒否はCoreではなくセッション。SI-T071はInputSnapshotを変更し独立性を検査する。
+
+| 旧ID群 | 実行層・対応 |
+|---|---|
+| SI-T001～076 | セッション状態遷移の統合試験として保持。Idleのみの演算ケースも従来fixtureを再利用 |
+| TEST-010～019、算術/flags/word試験 | Core単体。文字列を使わずNumberで構築 |
+| TEST-020～038 | キー操作はrdp-inputへ。TEST-032のCLI 0xGだけIA-L012へ移す |
+| TEST-043/053/054/056/060 | CLI parse/表示/終了コードはIA-L群と対応、Core formatはそのまま |
+| TEST-029、SI-T024 | Editing Push拒否をセッションへ配置変更、IA-C002と対比 |
+| SI-H003 | Float BS境界は021 Open、CLIのIA-L010で代替しない |
+| SI-H004 | IA-G004へ移管して確定試験化、旧IDは追跡タグのみ |
+
+追加ケースはIA-L（CLI）、IA-C（Core）、IA-G（共通キー/セッション）。全失敗は全snapshotと内部part、全成功は4段/L/flags/設定/記憶/Liftを比較する。Floatはto_bits、Ones負0はraw比較。明示しないフィールドは保持。L群のparse単体はCoreを呼ばず、副作用がないことをspyで確認する。
+
+### 9.1 CLI数値解析と実行
+
+特記なければW8/DEC/Twos、表のrawはHEX。parseのみはCalculator状態なし。submit試験の共通初期状態はstack=[5,2,3,4],L9,E、flags=F0..3=1010/C1/G1、R0=7。
+
+| ID | 入力・条件 | 期待値・エラー |
+|---|---|---|
+| IA-L001 | 0x12,0x123,0x1FF,0x100を各独立parse | raw12,23,FF,00 |
+| IA-L002 | Unsigned 0,255,256,-1,-256 | raw00,FF,00,FF,00（数学表示0,255,0,255,0） |
+| IA-L003 | Twos 127,128,-128,-129 | raw7F,80,80,7F、数学表示127,-128,-128,127 |
+| IA-L004 | Ones 127,128,-127,-128 | raw7F,80,80,7F、数学表示127,-127,-127,127 |
+| IA-L005 | -123、各SignedMode | Unsigned85/Twos85/Ones84 |
+| IA-L006 | -0、各SignedModeとFloat | Unsigned00/Twos00/OnesFF/Float負0bit |
+| IA-L007 | W1、各形式、0,1,2,-1 | 非負raw0,1,0。負1はUnsigned/Twos=1、Ones=0 |
+| IA-L008 | W64 Unsigned 18446744073709551615,18446744073709551616 | FFFFFFFFFFFFFFFF,0、ホスト整数overflowなし |
+| IA-L009 | W64、0x＋Fを254桁、続いて255桁の別試行 | 256文字はFFFFFFFFFFFFFFFF、257文字はLiteral(InputTooLong) |
+| IA-L010 | 単独-、全SignedMode/Float | 正0。Ones負0やFloat負0にしない。トークン分類もLiteral |
+| IA-L011 | -1,-123、DEC | 通常負数。IA-L005/006と同じ表現式、符号単独規則を誤適用しない |
+| IA-L012 | 0xG、0b2、0o8 | Literal(InvalidDigit)、最初の不正文字と接頭辞の基数 |
+| IA-L013 | 空、+、0x、--1、0d-1、1_0、全角１、内部空白 | parse単体でInvalidNumber（形不正）またはInvalidDigit（数字列不正）。1_0/全角１はInvalidDigit、他はInvalidNumber |
+| IA-L014 | Float 1e-,NaN,Inf,0x1 | InvalidNumber。Float 1e999はFloatingPointOutOfRange。Core未呼出 |
+| IA-L015 | 257文字かつ末尾G | InputTooLong優先、桁検査より前 |
+| IA-L016 | HEX設定で-0d123、DECで0x123 | raw85,23、表示radixは各元設定を保持 |
+| IA-L017 | submit pending=0x123 | stack=[35,5,2,3],L9,E、flags/R0保持、pending消去 |
+| IA-L018 | submit pending=0、next=Divide | Calculation(DivisionByZero)、Core全体とpending=0保持 |
+| IA-L019 | submit pending=0xG、next=Divide | Literal InvalidDigit、Core呼出なし、全状態/pending保持 |
+| IA-L020 | 通常トークン列5 0 / | [0,5,5,2],L9,E、除算失敗、先行2Push保持。初期状態は本節共通 |
+| IA-L021 | -、sub、keys内-を分類 | Literal正0、Command Subtract、InputEvent Command Subtract。減算エイリアス衝突なし |
+| IA-L022 | Syntax/Literal/Input/Calculation/Io | 終了2/2/1/1/3、stderr診断、失敗Batchは最終Xをstdoutへ出さない |
+
+長さ・形・左端桁・Float変換という順序を固定。Floatで数字列が不完全な1e-はCLI InvalidNumber、HP編集中のIncompleteEntryとは区別する。L013の単独+はparse単体だけの試験でありコマンド識別ではAdd。
+
+追加の境界パラメータ：W=1,2,3,4,8,16,32,63,64、全基数・全SignedModeで0、2^W-1、2^W、各形式の数学的最小/最大、その外側±1を展開する。正値raw=n mod 2^W、負値はIA §2の表現式を独立な多倍長参照計算で求める。これはCore入力の切り捨て試験には流用しない。
+
+### 9.2 Coreの完成値API
+
+初期W8/DEC/Twos、[5,2,3,4],L9,E、flags/R0はL群と同じ。
+
+| ID | 操作・条件 | 期待 |
+|---|---|---|
+| IA-C001 | 幅16で作ったWord raw123をPush | IntegerOutOfRange、全状態不変（自動マスク禁止） |
+| IA-C002 | Push(3)、編集型を持たないCore | [3,5,2,3],L9,E。InputInProgressを返す経路なし |
+| IA-C003 | Enter→Push(3) | [3,5,2,3],L9,E、Enter自身のlift後は上書き |
+| IA-C004 | Start(1)→ReplaceX(12) | [12,5,2,3],L9,E、liftは一度 |
+| IA-C005 | Enter→Start(1)→ReplaceX(12) | [12,5,2,3],L9,D、編集ではLiftを有効化しない |
+| IA-C006 | IntegerでPush(Float(NaN)) | FloatingPointOutOfRangeがNumericModeMismatchに優先、不変 |
+| IA-C007 | IntegerでPush(Float(1.0)) | NumericModeMismatch、不変 |
+| IA-C008 | 内部fixtureのflags上位bit破損＋X0でDivide | InvariantViolation優先。演算せず破損を含め状態不変 |
+| IA-C009 | FloatでEditBit index255 | InvalidBitIndex優先、mode不一致は次順位、無効bitシフトしない |
+| IA-C010 | W64 Unsigned R0=9007199254740993→Float | IntegerOutOfRange、全領域一括取消、SI-T056と対応 |
+| IA-C011 | X0,Y5でDivide/Remainder各独立 | DivisionByZero、stack/L/flags/設定/Ri不変 |
+| IA-C012 | snapshotコピーのX/R0/flags変更 | 実Core不変、編集fieldなし |
+| IA-C013 | execute_all Push5,Push0,Divide,Push7 | [0,5,5,2],L9,E、先行成功維持、Push7なし |
+| IA-C014 | 順位選択関数に同時候補を与える内部単体試験 | IA §4の全順位・同列順を総当たり。対象順X/Y/Z/T/L/Riも固定 |
+| IA-C015 | 不正mode＋値依存条件のある命令 | mode適合前に演算しない。FloatのAndはNumericModeMismatch、結果範囲を評価しない |
+| IA-C016 | 候補検証不整合を内部fault injection | InvariantViolation、実state不変。公開APIに注入機能を作らない |
+
+InvalidWordSize/InvalidRegisterCount/AllocationFailedは生成・確保経路、その他順位候補は命令経路で単一原因も検査する。内部順位関数の総当たりだけで到達可能な競合試験を代替しない。OSのOOM abortは試験対象外。
+
+### 9.3 GUI相当・協調原子性
+
+| ID | 操作・条件 | 期待 |
+|---|---|---|
+| IA-G001 | 共通状態からDigit1,Digit2 | [12,5,2,3],L9,E、Editing("12")、part=Mantissa |
+| IA-G002 | Float共通状態、Digit1,Digit2,CHS,BS | [-1,5,2,3],L9,E、Editing("-1")、flags保持 |
+| IA-G003 | W8 HEX Editing("FF")→Digit F | Input経由Calculation(IntegerOutOfRange)、全セッション保持。CLIならFFF→FFを受理 |
+| IA-G004 | Float Editing("1e")、SetRadix HEX | Calculation(NumericModeMismatch)、全状態不変。旧SI-H004を確定移管 |
+| IA-G005 | Float Editing("1e")、Divide | Input(IncompleteEntry)、previewでゼロ判定しない、全保持 |
+| IA-G006 | Editing("12")、Push3 | Input(InputInProgress)、全保持。直接CoreのIA-C002と対比 |
+| IA-G007 | Float Editing("1.2")、点 | Input(InvalidNumber)、全保持。SI-T032のvariant確定 |
+| IA-G008 | Editing("0")で除算失敗→Digit2 | SI-T062と同じEditing("02")、失敗後も編集継続 |
+| IA-G009 | Enter→Digit3 | SI-T004の値、Disabled保持。CLI完成PushのIA-C003とLiftを区別 |
+| IA-G010 | InputSnapshotのbuffer/part/Core snapshotを変更 | 実セッション全状態不変。SI-T071を拡張 |
+| IA-G011 | HP Editing中にCLI pending入力への切替要求 | InputInProgress、Core・HP編集・pending不変、二重編集禁止 |
+| IA-G012 | Float Editing("-1")でBS | TBD-021 Open、SI-H003として保留。CP-02合格扱いにしない |
+
+IA-G003の表記「Input経由」はセッション経由という意味で、エラーvariantはSessionError::Calculation(IntegerOutOfRange)。未確定IA-G012を通常成功件数へ算入しない。旧SI-H001/002/005～008もHP保留のまま。

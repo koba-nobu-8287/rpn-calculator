@@ -1,10 +1,12 @@
 # rdp-calc RPNスタック・数値入力 詳細設計
 
-版：SI-1.0（レビュー用） / 2026-10-31（日本時間） / UTF-8・LF
+版：SI-1.1（入力API分離反映） / 2026-10-31（日本時間） / UTF-8・LF
 
-基準：`develop` の `25bb2dea3fcb3162868e22cca5b5334c8375f4d6`（PR #1マージ後）。[基準設計v0.5](https://github.com/koba-nobu-8287/rpn-calculator/blob/25bb2dea3fcb3162868e22cca5b5334c8375f4d6/documents/rdp-calc-detailed-design.md)を優先する。本書はその§3～6を具体化する補遺であり、確定契約を置換しない。相違する提案は承認前に実装基準へ昇格させない。
+現行入力APIは[入力API設計 IA-1.0](rdp-calc-input-api-design.md)を優先する。以下のv0.5/HP照合は過去の根拠を維持する。状態表はCore単体ではなくHpInputSession全体に適用する。
 
-関連：[テスト仕様](rdp-calc-stack-input-test-cases.md)、[TBD管理表](rdp-calc-tbd-list.md)、[判断記録](rdp-calc-design-decisions.md)、[v0.5](rdp-calc-detailed-design.md)、[過去の照合記録](rdp-calc-manual-review.md)。リポジトリでは全ファイルを既存の`documents/`に配置する。
+旧照合基準：`develop` の `25bb2dea3fcb3162868e22cca5b5334c8375f4d6`（PR #1マージ後）。[基準設計v0.5](https://github.com/koba-nobu-8287/rpn-calculator/blob/25bb2dea3fcb3162868e22cca5b5334c8375f4d6/documents/rdp-calc-detailed-design.md)を当時の正本として照合した。今回の入力API・CP-01～03はIA-1.0で改訂し、それ以外の確定契約は維持する。HP未確認の提案を確定仕様へ昇格させない。
+
+関連：[テスト仕様](rdp-calc-stack-input-test-cases.md)、[TBD管理表](rdp-calc-tbd-list.md)、[判断記録](rdp-calc-design-decisions.md)、[詳細設計v0.6](rdp-calc-detailed-design.md)、[過去の照合記録](rdp-calc-manual-review.md)。リポジトリでは全ファイルを既存の`documents/`に配置する。
 
 ## 1. 適用範囲と根拠の強さ
 
@@ -42,7 +44,7 @@
 
 ## 2. 状態モデルと不変条件
 
-**入力とLift許可を直交する2状態機械として維持し、Calculatorが1トランザクションで協調更新する。** `EntryPhase::{Idle,Editing}`と`StackLift::{Disabled,Enabled}`を維持する。4つの組合せはすべて到達可能であり、新しい4値enumは導入しない。Floatの仮数／指数は`EntryPart`、整数／Floatは`NumericMode`に分離する。方式の変更ではなくDD-003の具体化である。
+**入力とLift許可を直交する2状態機械として維持し、HpInputSessionがCoreと編集を1トランザクションで協調更新する。** `EntryPhase::{Idle,Editing}`と`StackLift::{Disabled,Enabled}`を維持する。4つの組合せはすべて到達可能であり、新しい4値enumは導入しない。Floatの仮数／指数は`EntryPart`、整数／Floatは`NumericMode`に分離する。方式の変更ではなくDD-003の具体化である。
 
 | 状態名 | 意味・不変条件 | 受理イベント／出口 |
 |---|---|---|
@@ -63,7 +65,7 @@ V5の分離を維持：**編集中の正本は文字列、Xは数値プレビュ
 
 `finish_entry`は旧mode／旧radix／旧WordConfigで完成値を再解析し、Xへ採用、buffer空、Idle、part=Mantissaにする。Lift・LAST X・flagsを変えない。後続の演算や設定変更で失敗すれば、この入力確定も候補ごと破棄する。
 
-例：Floatの`1e-`ではX=1.0のプレビューだが、ENTERはIncompleteEntryで失敗する。snapshotのXだけを見て「1が確定済み」と判断してはならない。公開snapshotの`input_buffer`と`entry_phase`も参照する。内部で解析済み値を一時保持することは可能だが、二重の永続的正本は作らない。
+例：Floatの`1e-`ではX=1.0のプレビューだが、ENTERはIncompleteEntryで失敗する。snapshotのXだけを見て「1が確定済み」と判断してはならない。公開InputSnapshotの`input_buffer`と`entry_phase`も参照する。内部で解析済み値を一時保持することは可能だが、二重の永続的正本は作らない。
 
 ## 3. マニュアルとの操作別照合
 
@@ -84,7 +86,7 @@ V5の分離を維持：**編集中の正本は文字列、Xは数値プレビュ
 | WordSize | HP WSIZEはXを引数にDrop、元X保存、領域を再配置 | SetWordSize引数指定、無Drop・履歴保存なし、全値マスク／ゼロ拡張 | 意図したAPI差。HP版追加を提案、004/014継続 | H32、V5-H p.67/100 |
 | モード変更 | HP FLOATはY×2^X、Y/Z/T/Lを消去。Floatから基数キーで整数へ | SetNumericModeは全値厳密変換、SetRadixはFloat→整数にしない | 不一致を明示した独自契約。勝手に置換しない | CE §5 p.56–60、V5-H p.57、006 |
 | BS | 編集中は最後の桁削除、終了後はCLx | ASCII末尾1字を削除、空なら0、IdleはCLx | 一般分類一致、符号／指数削除の細部は未確認。021提案 | CE §1 p.17–18、H99 |
-| 初回桁が幅外 | W≤3で基数上有効だが幅を超す初回桁は0になる | IntegerOutOfRange、全状態保持 | **新規確認した差異**。013をPartialへ。互換変更は提案CP-01 | H32脚注 |
+| 初回桁が幅外 | W≤3で基数上有効だが幅を超す初回桁は0になる | IntegerOutOfRange、全状態保持 | **新規確認した差異**。013をPartialへ。互換変更はTBD-013に残す。CP-01はCLIだけ確定 | H32脚注 |
 | 正整数の符号bit到達 | 入力が符号bitに達すると負の表示になり得る | DEC数学値／他基数rawの解析区別 | キー入力でのDEC範囲扱いは不一致の可能性。CLIとの分離をレビュー | H32脚注、V5 §4.12、013 |
 | 不正桁／桁数上限 | 全基数・全境界のキー応答は今回確定できず | 不正数字Err、256文字上限、値範囲外Err | 製品契約を維持、HP互換とは認定しない | V5 §6.4、013/017 |
 | エラー | 任意キーでエラー表示解除（過去CE確認） | コアはErr、全state保持、次のCommandは通常実行 | 表示解除とコア原子性を分離、キー消費は未確認 | V5照合記録、CE Appendix A p.96、012 |
@@ -144,7 +146,7 @@ LAST Xの全分類はV5 §5.2.1を維持する。算術・論理・シフト・�
 | SI-20: 任意 | ClearRegisters／snapshot | 常時 | 記憶領域のみ0／読取のみ | 保持 | 同状態 |
 | SI-21: 任意 | 不正桁・範囲外・不完全確定・演算失敗等 | Err | 全状態を操作前へ戻す | 全保持 | 同状態 |
 
-SI番号はV5 TR番号に1対1対応し、旧IDは再利用しない。SI-11の符号だけ残る削除は§9 CP-02のレビュー待ちで、図は未定義入力への成功遷移を主張しない。
+SI番号はV5 TR番号に1対1対応し、旧IDは再利用しない。SI-11の符号だけ残る削除はTBD-021のレビュー待ち（CLIのCP-02では解決しない）で、図は未定義入力への成功遷移を主張しない。
 
 ### 5.1 Lift制御機械
 
@@ -184,15 +186,15 @@ ASCIIのみ、HEXは0–9/A–F（小文字を大文字化）、DECは0–9、OC
 
 整数の負数は「正の桁入力→CHS」で作り、CHSはそこで入力を終える。次の数字は別の数を開始する。FloatのCHSは編集中のpartの符号を切替え、次の数字を同じ数に追加する。Integer CHSでbufferに`-`を付ける実装は禁止。CLIの`-5`は完成数値のparse＋Pushでありキー列とは異なる。
 
-V5のDEC完成値は符号付き数学値、HEX/OCT/BINの符号なし表記はraw bits。例えばW8 TwosのFFはraw FFとして受理し、数学値は−1となる。DECの128をキーで受理するかはCP-01の論点であり、勝手にraw入力へ拡張しない。
+V5のDEC完成値は符号付き数学値、HEX/OCT/BINの符号なし表記はraw bits。例えばW8 TwosのFFはraw FFとして受理し、数学値は−1となる。DECの128をキーで受理するかはTBD-013の論点（CP-01とは分離）であり、勝手にraw入力へ拡張しない。
 
 ### 6.2 小数点・指数・BS
 
-IdleのFloat小数点は新規入力`0.`を作り、旧Liftに従って一度移動する。Integerの点／EEXはNumericModeMismatch。Idle EEXはIncompleteEntry。二つ目の点、指数部への点、二度目のEEXはInvalidNumber（V5 CalcErrorに対応する具体化案CP-03）。
+IdleのFloat小数点は新規入力`0.`を作り、旧Liftに従って一度移動する。Integerの点／EEXはNumericModeMismatch。Idle EEXはIncompleteEntry。二つ目の点、指数部への点、二度目のEEXはInvalidNumber（InputError::InvalidNumber、CP-03確定）。
 
 Float bufferの文法は仮数`-?digits(.digits*)?`に省略可能な`e-?digits*`を続ける。先頭の点は`0.`へ正規化。末尾e/e-は編集時だけ許容しpreviewは指数0、finishはIncompleteEntry。有限f64でなければFloatingPointOutOfRange。マニュアルの10桁・2桁指数・EEX表示上の制限を256文字f64編集へ暗黙適用しない。
 
-BSは数字が残る場合に末尾を削り、指数記号を消したらMantissaへ戻す。`12→1`、`1e-2→1e-→1e→1`はV5の文字編集規則からの導出（HPでの細部は017）。`1→0`はV5暫定でEditingとLiftを維持する。`-1→-`はV5の「空なら0」だけでは有効文法にならないためCP-02を要する。削除や符号切替の後も有限性を再検査し、失敗時は全保持とする。文字列だけを更新しない。
+BSは数字が残る場合に末尾を削り、指数記号を消したらMantissaへ戻す。`12→1`、`1e-2→1e-→1e→1`はV5の文字編集規則からの導出（HPでの細部は017）。`1→0`はV5暫定でEditingとLiftを維持する。`-1→-`はV5の「空なら0」だけでは有効文法にならないためTBD-021の製品判断を要する（CP-02はCLIのみ）。削除や符号切替の後も有限性を再検査し、失敗時は全保持とする。文字列だけを更新しない。
 
 256文字はASCII buffer全体の上限（符号・点・eを含む）。長さと値範囲は独立。先頭ゼロを256文字入力する試験で値範囲の影響を排除する。最大256文字は受理、257文字目はInputTooLong。先に数値範囲へ達すればIntegerOutOfRange／FloatingPointOutOfRangeとなる。HPの表示桁数と同じ意味ではない。
 
@@ -206,243 +208,13 @@ BSは数字が残る場合に末尾を削り、指数記号を消したらMantis
 
 ### 6.4 エラーと復帰
 
-コアにError状態enumや「次キーを消費する」状態は追加しない。Err後は入力、part、Lift、全数値、全設定、全flags、記憶領域が同一である。次のCommandを通常通り処理する。例：編集中`0`で除算失敗後に`2`を入力すると同じbufferに追記される。新しい値を始めたい呼出側はCLxを明示する。HPエラー画面の解除キーを消費するかはTBD-012のUI課題であり、このコア契約を変えない。
+コアにError状態enumや「次キーを消費する」状態は追加しない。HpInputSessionのErr後は入力、part、Lift、全数値、全設定、全flags、記憶領域が同一である。次のCommandを通常通り処理する。例：編集中`0`で除算失敗後に`2`を入力すると同じbufferに追記される。新しい値を始めたい呼出側はCLxを明示する。HPエラー画面の解除キーを消費するかはTBD-012のUI課題であり、このコア契約を変えない。
 
-複数不正条件が同時に成立する場合のエラー優先順と、有限f64への厳密変換で精度が失われる場合のvariantはV5に完全な定義がない。CP-03で固定順を提案し、承認前は「Errかつ全状態不変」だけを共通必須条件にする。単一原因のテストでは既存variantを厳密比較する。
+複数原因の順位と未指定variantは[入力API設計 IA-1.0](rdp-calc-input-api-design.md) §4で確定した。InputErrorとCalcErrorを分離して厳密比較し、全失敗でCore＋編集の全状態を比較する。
 
 ## 7. Rustの型・API・更新順序
 
-以下はシグネチャ仕様であり製品コードの実装ではない。V5の公開名・variant・所有元を維持する。単にイベントenumを増やして公開Commandと二重管理しない。操作イベントは既存Commandそのものとする。
-
-```rust
-// input.rs: public型はlib.rsから再公開
-pub enum EntryPhase { Idle, Editing }
-pub enum StackLift { Enabled, Disabled }
-pub(crate) enum EntryPart { Mantissa, Exponent }
-pub(crate) struct InputState {
-    phase: EntryPhase,
-    lift: StackLift,
-    buffer: String,
-    part: EntryPart,
-}
-// stack.rs
-pub(crate) struct RpnStack {
-    values: [Number; 4], // X,Y,Z,T
-    last_x: Number,
-}
-// state.rs。fieldの可視性はV5のpub(crate)
-pub(crate) struct CalculatorState {
-    pub(crate) stack: RpnStack,
-    pub(crate) input: InputState,
-    pub(crate) registers: RegisterBank,
-    pub(crate) flags: Flags,
-    pub(crate) word_config: WordConfig,
-    pub(crate) radix: Radix,
-    pub(crate) numeric_mode: NumericMode,
-}
-// calculator.rs
-pub struct Calculator {
-    state: CalculatorState,
-    initial_config: CalculatorConfig,
-}
-```
-
-```rust
-// command.rs: 対象イベント抜粋。完全なenumはV5 §3.4。
-pub enum Command {
-    InputDigit(char), InputDecimalPoint, InputExponent, Backspace,
-    Push(Number), Enter, ClearX, ChangeSign,
-    SwapXY, RollDown, RollUp, RecallLastX,
-    Add, Subtract, Multiply, Divide, Remainder, Absolute, Sqrt,
-    Store(usize), Recall(usize),
-    SetRadix(Radix), SetWordSize(WordSize), SetSignedMode(SignedMode),
-    SetNumericMode(NumericMode), SetFlag { index: u8, value: bool },
-    ClearStack, ClearRegisters,
-}
-```
-
-```rust
-impl Calculator {
-    pub fn execute(&mut self, command: Command) -> Result<(), CalcError>;
-    pub fn execute_all(&mut self, commands: impl IntoIterator<Item = Command>)
-        -> Result<(), CalcError>;
-    pub fn snapshot(&self) -> CalculatorSnapshot;
-}
-// private。公開APIに新しい状態enumや互換モードを追加しない。
-fn apply_command(state: &mut CalculatorState, command: Command)
-    -> Result<(), CalcError>;
-fn metadata(command: &Command, phase: EntryPhase, mode: NumericMode)
-    -> CommandMetadata;
-fn finish_entry(state: &mut CalculatorState) -> Result<(), CalcError>;
-fn apply_eval(state: &mut CalculatorState, result: EvalResult,
-    binary: bool, last_x_effect: LastXEffect);
-```
-
-入力の`append_digit/decimal_point/exponent/change_sign/backspace/finish`はV5 §4.5のAPIを維持し`Result<Number,CalcError>`でpreview／確定値を返す。inputはstackを操作しない。`CommandMetadata`の`terminates_entry`、`lift_effect`、`last_x_effect`は純粋な分類だが、ENTERのlift、CLxの破棄、RCLの条件lift、モード変換までを単一のboolへ押し込まない。特別経路は専用match分岐で表現する。
-
-### 7.1 原子的更新の順序
-
-1. 実stateから候補stateをClone。元phase/mode/Liftは分類と条件Liftのために保持。
-2. Commandのmode・引数・編集ガードを確認。編集開始なら候補bufferを作り検証してから移動する。編集終了が必要な命令だけfinishを呼ぶ。
-3. 旧設定で入力を確定後、オペランド／Recall元値／保存前Xをコピー。純粋演算または設定変換を評価する。ここまでは実stateを変更しない。
-4. 成功結果に対しLAST X効果を適用、物理的な移動、X／Ri書込み、flags反映の順に候補更新。入力確定前の古いXやDrop後のXをLAST Xへ保存しない。
-5. 入力phase/buffer/partを命令契約へ設定し、最後にLift制御効果を反映する。Neutralは旧E/Dを保持する。
-6. 候補の全不変条件を検証。成功した場合のみ実stateを置換、Ok。途中のErrは候補を捨て、Errを返す。
-
-`execute_all`はこの処理を逐次呼び、先行成功分は維持する。全バッチを巻き戻さない。整数overflowの成功判定とErrを混同しない。メモリ枯渇でプロセス継続できない場合までの保証はV5同様に対象外。
-
-### 7.2 クラス図
-
-```mermaid
-classDiagram
-    class Calculator {
-        -CalculatorState state
-        -CalculatorConfig initial_config
-        +execute(Command) Result
-        +snapshot() CalculatorSnapshot
-    }
-    class CalculatorState {
-        ~RpnStack stack
-        ~InputState input
-        ~RegisterBank registers
-        ~Flags flags
-        ~WordConfig word_config
-        ~Radix radix
-        ~NumericMode numeric_mode
-    }
-    class InputState {
-        -EntryPhase phase
-        -StackLift lift
-        -String buffer
-        -EntryPart part
-        ~finish() Result
-        ~append_digit() Result
-    }
-    class RpnStack {
-        -Number[4] values
-        -Number last_x
-        ~lift()
-        ~drop_stack()
-    }
-    class CalculatorSnapshot {
-        +Number[4] stack
-        +Number last_x
-        +EntryPhase entry_phase
-        +StackLift stack_lift
-        +Option~String~ input_buffer
-    }
-    Calculator *-- CalculatorState
-    CalculatorState *-- InputState
-    CalculatorState *-- RpnStack
-    CalculatorState *-- RegisterBank
-    Calculator ..> Command
-    Calculator ..> CalculatorSnapshot : copy
-```
-
-Snapshotの図は入力関連フィールドの抜粋。全定義はV5 §3.2（registers、flags、radix、word_config、numeric_modeも必須）。外部はsnapshotを変更してもコアを変更できない。restore APIは追加しない。
-
-### 7.3 ENTER→数字→二項演算のシーケンス
-
-```mermaid
-sequenceDiagram
-    participant UI as CLI or GUI
-    participant C as Calculator
-    participant D as CandidateState
-    participant I as input
-    participant S as stack
-    participant A as arithmetic
-    Note over C,S: 初期 [5,2,3,4], Editing("5"), D
-    UI->>C: execute(Enter)
-    C->>D: clone
-    D->>I: finish in old config
-    I-->>D: 5, Idle
-    D->>S: lift()
-    Note over D,S: [5,5,2,3], Idle, Disabled
-    C->>C: validate and commit
-    UI->>C: execute(InputDigit('3'))
-    C->>D: clone
-    D->>I: begin and validate digit
-    I-->>D: buffer 3, preview 3
-    D->>S: set_x(3), no lift because Disabled
-    Note over D,S: [3,5,2,3], Editing, Disabled
-    C->>C: validate and commit
-    UI->>C: execute(Add)
-    C->>D: clone
-    D->>I: finish
-    D->>A: eval_binary(Add, Y=5, X=3)
-    alt success
-        A-->>D: value 8, flags
-        D->>S: save X=3, drop_stack(), set_x(8)
-        Note over D,S: [8,2,3,3], L=3, Idle, Enabled
-        C->>C: apply flags, validate and commit
-        C-->>UI: Ok
-    else failure
-        A-->>C: Err
-        C-->>UI: Err, original state unchanged
-    end
-```
-
-ENTERのfinish失敗、数字の検証失敗も同じ候補破棄契約。図の成功経路はSI-05→SI-02→SI-08。これによりENTERで動かしたあと数字で二重Liftしないことを明示する。
-
-### 7.4 モジュール依存図
-
-```mermaid
-flowchart TD
-    CLI[rdp-cli] --> API[lib public exports]
-    API --> CALC[calculator]
-    CALC --> STATE[state]
-    CALC --> CMD[command]
-    CALC --> INPUT[input]
-    CALC --> STACK[stack]
-    CALC --> REG[register]
-    CALC --> FLAGS[flags]
-    CALC --> WORD[word]
-    CALC --> CONFIG[config]
-    CALC --> NUMBER[number]
-    CALC --> ARITH[arithmetic]
-    CALC --> BIT[bitwise]
-    CALC --> ERR[error]
-    STATE --> STACK
-    STATE --> INPUT
-    STATE --> REG
-    STATE --> FLAGS
-    STATE --> WORD
-    STATE --> CONFIG
-    STATE --> NUMBER
-    STATE --> ERR
-    CMD --> NUMBER
-    CMD --> WORD
-    CMD --> CONFIG
-    CMD --> BIT
-    INPUT --> NUMBER
-    INPUT --> WORD
-    INPUT --> CONFIG
-    INPUT --> FORMAT[format]
-    INPUT --> ERR
-    FORMAT --> NUMBER
-    FORMAT --> WORD
-    FORMAT --> CONFIG
-    FORMAT --> FLAGS
-    FORMAT --> ERR
-    STACK --> NUMBER
-    REG --> NUMBER
-    REG --> ERR
-    ARITH --> NUMBER
-    ARITH --> WORD
-    ARITH --> FLAGS
-    ARITH --> ERR
-    BIT --> WORD
-    BIT --> FLAGS
-    BIT --> ERR
-    FLAGS --> ERR
-    NUMBER --> WORD
-    NUMBER --> CONFIG
-    NUMBER --> ERR
-    WORD --> ERR
-    ERR --> CONFIG
-```
-
-V5 §2.2の直接依存DAGを維持。`command→bitwise`は公開enumの型利用だけ。input→calculator/stack、error→state、bitwise→commandは導入しない。libは再公開の入口であり状態所有者ではない。
+[入力API設計 IA-1.0](rdp-calc-input-api-design.md) §3・4が正本。CoreからInputStateとキーCommandを除去し、HpInputSessionへ移す。InputSnapshotが旧snapshotの編集項目を引き継ぐ。Coreの数値更新はStart/ReplaceX、完成入力はPush。セッション候補をcloneし、旧設定finish・値評価・LAST X/stack/flags・編集終了・Lift・不変条件検査を成功させてから一括置換する。execute_allは逐次成功保持のまま。依存図・クラス図・CLI/GUI/失敗シーケンスはIAに集約する。
 
 ## 8. 検証と受入
 
@@ -450,16 +222,36 @@ V5 §2.2の直接依存DAGを維持。`command→bitwise`は公開enumの型利�
 
 図と表の整合は、SI-01～21の各イベントを2図のラベル集合へ展開し、phaseとLiftを別々に比較する。特殊ガード・設定変換・不完全入力は表／境界節を使う。未定義のHPキー効果に期待値を捏造しない。設計作業なので製品コード・Rust単体テスト・実機試験の実行済みとは扱わない。
 
-## 9. 変更提案と実装ゲート
+## 9. 決定と実装ゲート
 
-| 提案 | 現状／推奨案 | 判断に必要な情報 | 実装への影響・状態 |
-|---|---|---|---|
-| CP-01 / TBD-013 | 初回幅外桁のHP例外と、DEC入力の符号bit到達をキー入力専用ポリシーで扱う。PushとCLI parseは厳密拒否を維持する案 | W1/2/3各基数の初回・継続桁、符号形式、Lift、flags、桁上限の原版画像または実機列。製品として例外を採用するか | **Partial**。HP互換入力のブロッカー。現行厳密入力の実装は先行可。公開APIを黙って変えない |
-| CP-02 / TBD-021 | V5の文字削除で`-1→-`になる穴。推奨は符号だけを`0`に正規化しEditing/Lift維持（符号を落とす）。HP動作とは未確認 | 正負0・指数・点の削除境界と、符号保持要否の製品判断 | **Open**。Float BSの当該境界だけ実装ゲート。提案期待値は別紙で通常合格ケースと分離 |
-| CP-03 / TBD-022 | 同時不正時のErr優先順位。推奨：phaseガード→mode→引数→旧入力finish→評価→全不変条件。編集内は文字→文法→長さ→数値範囲 | v0.5 API利用者にとってvariant順序を保証する必要性のレビュー | **Open**。単一原因・原子性は実装可。複数原因のvariant固定試験は承認後 |
-| 004/006/014 | HP WSIZE/FLOAT用Commandを直接設定APIと分離し、raw記憶領域を設計 | 物理領域、LAST X幅、逆変換丸め、f64との対応 | **Partial**。HPモード互換のブロッカー。独自厳密変換はV5暫定で先行可 |
-| 001/011/012/017 | 通常遷移は設計済み。起動Lift、物理番号、表示解除キー、全編集境界は未確定 | 原版／実機の対象限定確認 | **Partial**。UI・互換宣言のゲートであり基本スタック実装を止めない |
+CP-01/02/03は製品判断としてResolved。CP-01はCLI切り捨て、CP-02はCLI単独-の0化、CP-03は順位と型を確定。TBD-013のHP幅外キー、TBD-021のFloat BSは未解決。旧CP-01/02提案に含まれたHP互換変更を承認したものではない。004/006/014のHP設定APIと記憶配置、001/011/012/017の未確認境界も継続する。
 
-今回Resolvedと扱うものは通常ENTER/CLx/基数中立の遷移（001の部分項目）、CHSのモード分類（002）、LAST X分類（003）、STO/RCLの基本効果（011の部分項目）、製品原子性（DD-005）。全体TBDの状態と部分項目のResolvedを混同しない。既存ClosedはResolvedと同義に統一し、過去履歴のClosed表記は残す。
+## 10. SI-1.0からの21分類移行表
 
-確定事項の変更は行っていない。CP-01～03とHP追加APIはレビュー待ち。現行契約・提案・HP保留テストを分けることが、実装着手時の条件である。
+以下の「配置」は数値・Lift・LAST X・flagsの期待値不変。「変更」は公開API境界の変更でありHP算術変更ではない。§5のSI番号を再利用・削除しない。
+
+| SI分類 | 区分 | 更新後の責務 |
+|---|---|---|
+| SI-01 | 配置 | アダプターbegin/edit→Core Start、条件lift、E保持 |
+| SI-02 | 配置 | 同Start、X上書き、D保持 |
+| SI-03 | 配置 | アダプター追記→ReplaceX、再liftなし |
+| SI-04 | 配置 | Float点/指数はアダプター、ReplaceX |
+| SI-05 | 配置 | finish→ReplaceX→Core Enter、D |
+| SI-06 | 維持 | Core Enter、D |
+| SI-07 | 配置 | 編集破棄＋Core ClearX、D |
+| SI-08 | 配置 | finish→ReplaceX→演算/移動、E |
+| SI-09 | 配置 | Float編集CHS→ReplaceX、Lift/L保持 |
+| SI-10 | 配置 | finish後Core CHS、Integer SaveX/Float KeepL、E |
+| SI-11 | 配置 | BS編集→ReplaceX、符号だけ残る境界は021 |
+| SI-12 | 配置 | アダプターBS→Core ClearX、D |
+| SI-13 | 配置 | 旧設定finish後Core設定変更、Lift中立 |
+| SI-14 | 配置 | 旧設定finish後全領域厳密変換、Lift中立 |
+| SI-15 | 配置 | finish後Recall/LastX、条件lift後E |
+| SI-16 | 配置 | finish後Store、無移動、E |
+| SI-17 | 変更 | Core Pushは完成値API、phaseなし。セッションIdle経由は従来値 |
+| SI-18 | 変更 | Editing Push拒否はセッションInputError::InputInProgress |
+| SI-19 | 配置 | 編集破棄＋Core ClearStack、全stack/L=0、D |
+| SI-20 | 変更 | ClearRegistersは編集保持。Core snapshotとInputSnapshotを分離 |
+| SI-21 | 変更 | InputError/CalcError分離、Core＋編集全体ロールバック、CP-03順位固定 |
+
+StackLift、4段移動、LAST X、Store/Recall効果、通常の演算flagsは維持。EntryPhase/buffer/partとfinishを配置変更。CLI文字列にはこのキー遷移表を流用しない。Coreの直接PushではSI-18という状態自体が存在しない。
