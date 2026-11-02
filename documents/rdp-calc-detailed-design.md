@@ -776,9 +776,9 @@ keysは引用符内の命令名と数字片を展開し、`digit:X`、`.`、`eex
 - WordSizeは1～64の全幅を単体テスト。演算境界は1/2/4/8/16/32/63/64、各符号形式、最小/最大/0/±1/負のゼロ。
 - 小幅1～4では全オペランド組合せを、実装と独立した数学式の参照モデルと比較する。参照モデルでもrawと負のゼロを保持する。HP未確認の式は暫定モデルと明記する。
 - Keep命令は前flagsが0/1の両方、Cond命令は真偽両方。F0～3が変わらないことも比較する。
-- 失敗試験はXだけでなく全Snapshotと内部EntryPartを比較。Floatは必要ならto_bitsで符号付きゼロを確認する。
-- 公開APIの結合試験はcrates/rdp-core/tests、private関数の単体試験は各モジュール内。CLIはstdin/stdout/stderrと終了コードを検査する。
-- `cargo test --workspace`で全体、`cargo test -p rdp-core`でコア、`cargo test -p rdp-cli`でCLI。必要な互換fixtureには資料版、印刷ページ、設定、操作列、期待状態、TBD解決日を持たせる。
+- 失敗試験はXだけでなく各層の全Snapshotを比較。セッションでは内部EntryPart、CLI submitではpendingも比較。Floatは必要ならto_bitsで符号付きゼロを確認する。
+- 公開APIの結合試験はCoreがcrates/rdp-core/tests、セッションがcrates/rdp-input/tests。private関数の単体試験は各所有モジュール内。CLIはstdin/stdout/stderrと終了コードを検査する。
+- `cargo test --workspace`で全体、`cargo test -p rdp-core`でコア、`cargo test -p rdp-input`でセッション、`cargo test -p rdp-cli`でCLI（実装後の実行方法）。必要な互換fixtureには資料版、印刷ページ、設定、操作列、期待状態、TBD解決日を持たせる。
 - f64の演算結果は単純な正確値を除き、独立した参照値と絶対/相対許容誤差をケース別に持たせる。実機比較の許容値はTBD-016。NaNに対して通常のPartialEqを使わない。
 
 ### 10.3 先行テストとの対応
@@ -831,20 +831,31 @@ TBD-004/006の記憶領域とモード切替はデータ構造の変更を要す
 
 | 段階 | 対象モジュール | 実装内容 | 前提 | 完了条件 | 必要なテスト | TBDの影響 |
 |---|---|---|---|---|---|---|
-| 0 | docs、Workspace、lib.rs | 本書の暫定採用範囲を記録、2クレートと公開境界 | なし | 設計・対応/未対応一覧が一致 | 文書整合チェック | 001/002/013を基本入力の判断として記録 |
+| 0 | docs、Workspace、公開境界 | rdp-core・rdp-input・rdp-cliの3クレート構成、CLI→Core、CLI/GUI→rdp-input→Core | なし | CoreがStackLift、HpInputSessionがEntryPhase/buffer/partを所有する設計と一致 | 文書整合チェック、試験移設先の確認 | CP-01～03の設計確定とHP残件を区別 |
 | 1 | config、error、word、number、flags | 安全な値型・幅・変換・更新指示 | 0 | 無効幅/型をResultで拒否、64bit境界安全 | 001～009、055 | 008のraw負ゼロ表現は保持 |
 | 2 | stack、register、state | 固定段操作、初期状態、Snapshot | 1 | 4段/全領域の不変条件を保証 | 010～014、031、061 | 011の個数は暫定16で進められる |
 | 3 | arithmetic | Unsigned/2補数四則、純粋評価、sqrt | 1 | 境界・ゼロ除算・通常overflowを区別 | 015～019、044～046、057、059 | 007のflagsは暫定表、008の1補数は別レビュー |
-| 4 | format、rdp-input、CLI parser | リテラル・キー編集分離、phaseとCore Liftの協調 | 1 | 不正入力で既存buffer保持、Push契約明確 | 032～038、043 | 001/002/013/017/018。Float編集は後段でも可 |
-| 5 | calculator | 原子的execute、execute_all、基本命令 | 2～4 | 全状態整合、CLIなしで利用可能 | 020～030、047/048 | 003のLAST Xは命令表へ隔離 |
-| 6 | arithmetic、bitwise | 1補数、論理、回転、引数式bit/mask | 1/3/5 | 暫定仕様試験と未確定HP試験を分離 | 018/049～052/058/063 | 007/008/009/010を実装前レビュー |
-| 7 | CLI一式 | 同一parserでREPL/Batch、I/O分離 | 5/6 | 出力・終了コード・途中基数変更を検証 | 053/054/056/060 | 独自CLI仕様は確定。実機キー対応は別 |
-| 8 | state、arithmetic、format、input | Floatモード・厳密切替・幅/補数変更 | 2～7 | 全領域一括変換と失敗原子性 | 039～043、062、067 | 004/005/006/016/017 |
-| 9 | compatibility fixtures、docs | Handbook/実機照合、TBD解決 | 5～8 | 実装対象命令の確認範囲・非互換点公開 | 065/066/067と閉じたTBDの追加例 | 不明な期待値は埋めない |
+| 4 | Core format、rdp-input編集器/finish、CLI parse_literal | 表示・CLI数値解析・HPキー編集の単体作業を分離 | 1、設定snapshot利用は2 | CLI正規化とHP厳密拒否を別規則で検証。不正入力でbuffer保持。Core呼出しと協調原子性は段階5/8で統合 | TEST-032～038の単体部分（Floatは8）、TEST-043、IA-L001～016のparse単体 | TBD-013のHP部分、017/018/021を維持 |
+| 5 | Core calculator、rdp-input HpInputSession | 先にexecute/update_value/snapshot/test_bitを実装し、その後edit/finishとCore呼出し・候補セッション全体置換を統合 | 2/3、4の対象単体作業。セッション統合は本段階のCore API成立後 | 完成値Pushは条件lift後Enabled、初回Startは条件lift・Lift保持、継続/finishはReplaceXで再liftなし。厳密値検査、単発/セッション全体の原子性。execute_allは先行成功保持 | TEST-020～030/032～037/047/048/061の対応部分、IA-C001～008/011～014/016、IA-G001/003/006/008～010、SI-Tの基本Integerケース | Float/設定/bit依存試験は6/8まで完了扱いにしない。LAST Xは現行命令表に従う |
+| 6 | Core arithmetic/bitwise、セッション命令統合 | 1補数、論理、回転、引数式bit/mask | 1/3/5 | 暫定仕様試験と未確定HP試験を分離、引数順位と安全な前提ガードを実命令で検証 | TEST-018/049～052/058/063/068/073、対応SI-T、IA-C009/014/015の対応部分（Float競合は8） | 007/008/010の残件をレビュー、009の確定契約を維持 |
+| 7 | CLI識別、CliSession、REPL/Batch、I/O | 実行時設定でparse→Push。pendingはparse→Push→後続命令を候補上で一括実行、成功時のみ消去 | 4のparser、5のCore API/セッション統合、6の対象命令 | pending失敗時はCore/HP編集/pendingを全保持。通常トークン列は先行成功保持、行構文不正は実行前拒否。二重編集を拒否 | TEST-053/054/060/064、IA-L017～022、IA-G011、IA-L010/021の分類。FloatのTEST-056等は8で統合 | CLI契約は設計確定。HP残件を確定しない |
+| 8 | Core state/arithmetic/format、rdp-input Float編集、CLI統合 | Float・独自厳密切替・幅/補数変更。単体編集→対応Core API→旧設定でfinish後のセッション/CLI統合の順 | 2～7の対象基盤。統合は対応Core API実装後 | 全領域一括変換と失敗原子性、Float符号付きゼロ、part保持、独立条件順位と依存ガードを検証 | TEST-033/035/038～043/056/062/067/069/070、IA-C009/010/014/015のFloat/変換経路、IA-G002/004/005/007、SI-TのFloat/設定ケース、IA-L006/010/014/022のFloat統合 | 004/005/006/016/017/018を維持、IA-G012はTBD-021で保留 |
+| 9 | compatibility fixtures、docs | Handbook/実機照合、該当TBDの判断 | 5～8の対象機能 | 設計受入・実装試験・HP互換確認の到達点と非互換点を区別して公開 | TEST-065～067/071/072の該当範囲、SI-H保留群 | 不明な期待値は埋めない。保留を成功件数に算入しない |
 | 10 | register拡張、倍長/LJ | プログラミングを除く未対応命令の追加 | 9と該当詳細仕様 | 新命令ごとにAPI・状態・テスト確定 | 新規TEST-ID | 014/019/020。今回は実装対象外 |
-| 11 | rdp-gui | Command入力とSnapshot表示 | 安定したコアAPI | CLIと同じ操作列で同じ状態 | コアシナリオ再利用 | UI固有エラー解除は012 |
+| 11 | rdp-gui | HpInputSessionへKey/Command入力、InputSnapshot表示。完成値はPush | 安定したCore APIとrdp-inputの対応機能・協調原子性検証 | 共通セッションと同じ操作列で同じ状態 | 該当SI-T/IA-Gシナリオ再利用（保留除外） | UI固有エラー解除は012 |
 
 ソースコードの実装はこの作業では行わない。各段階の「完了条件」は今後の実装時の受入条件であり、今回テスト実行済みという意味ではない。
+
+本章は[入力API設計 IA-1.0](rdp-calc-input-api-design.md) §2～4、[SI-1.1](rdp-calc-stack-input-detailed-design.md)、[試験仕様](rdp-calc-stack-input-test-cases.md) 第9節に従う。試験の配置・依存は次のとおりとし、全IAケースを全段階へ機械的に追加しない。
+
+- 段階1のerrorはCalcErrorを定義し、InputError/SessionError/LiteralErrorとの責務を分離する。IA-C014の内部順位選択試験を先行できるが、段階5/6/8の実命令経路を代替しない。段階2のstateはStackLiftと全領域のCalculatorSnapshotを所有し、編集fieldを持たない。IA-C012でコピー独立性を検証する。
+- CP-01：段階4のIA-L001～009/011～016でCLIの正規化・境界・文法を検証し、段階7でIA-L016/017を実行時設定・Pushへ接続する。Coreは段階5のIA-C001/006/007で幅外・非有限・mode不一致を厳密拒否し、CLI解析と混同しない。HPキーの暫定厳密拒否はIA-G003で対比する。
+- CP-02：段階4のIA-L010/011はparse単体、段階7のIA-L021は単独-・sub・keys内減算の分類。Float負0を含む統合は段階8。CLI単独-の正0をFloat BS境界の期待値に流用しない。
+- CP-03：段階5/6/8のIA-C006～011/014～016で到達可能な競合・対象順・前提ガードを検証する。アダプター競合は段階5/8のIA-G003～008、CLIの解析順位とCore未呼出しは段階4のIA-L012～015、段階7のIA-L019で確認する。構造引数・生成・確保経路の単一原因も試験仕様第9節に従う。
+- 原子性：段階5のCore単発とセッション全体、段階8の変換/Float統合を分けて検証する。CLI pendingの一括取消は段階7のIA-L018/019。通常トークン列IA-L020、Core::execute_allのIA-C013/TEST-048は先行成功保持であり、一括取消の代用にしない。全領域変換取消はIA-C010/SI-T056。
+- 既存TEST/SIのID・数値期待値は試験仕様第9節に従い維持する。TEST-020～038のキー操作、TEST-029/SI-T024はrdp-inputへ移設し、編集を知らないCoreのIA-C002と対比する。TEST-032のCLI 0xGのみIA-L012へ移す。TEST-043/053/054/056/060のCLI部分はIA-L群と対応し、Core formatは維持する。SI-T071/IA-G010とIA-C012は各snapshot所有層で検証する。重複ケースは旧IDを追跡タグとして保持し、実行済み件数を二重計上しない。
+- SI-T001～076はセッション統合試験として保持し、段階5/6/8で必要命令の実装後に検証する。SI-T032はInput(InvalidNumber)、SI-T056はCalculation(IntegerOutOfRange)。SI-H004は段階8のIA-G004へ移管済みで旧IDは追跡タグのみ。IA-G012/SI-H003とSI-H001/002/005～008はHP保留のまま、通常の完了・成功件数に算入しない。
+- 失敗時は各層の全snapshot（セッションは内部part、CLI submitはpendingも含む）、成功時は4段/L/flags/設定/記憶/Liftを比較する。Floatはto_bits、Ones負0はraw比較。未実装の前提を持つ試験は後段への持越しを記録し、完了扱いにしない。
 
 ### 12.1 設計整合性の確認記録
 
