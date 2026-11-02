@@ -173,7 +173,7 @@ struct TransitionCase {
 // Number::Floatはto_bits()で比較、IntegerはWord::bits()で比較。
 ```
 
-製品実装後、モジュール内のprivate状態試験と`crates/rdp-core/tests/`の公開API試験を分離して`cargo test -p rdp-core`で実行する。現Cargo.tomlには当該crateがないため、今回このコマンドが通ると主張しない。CLI側はキー列と完成数値Push列を分け、コアfixtureの期待Snapshotを使って検証する。
+製品実装後、private状態試験は各所有モジュール内、Core公開API試験は`crates/rdp-core/tests/`、編集・協調原子性の公開API試験は`crates/rdp-input/tests/`へ分離し、それぞれ`cargo test -p rdp-core`、`cargo test -p rdp-input`で実行する。現Cargo.tomlには当該crateがないため、今回これらのコマンドが通ると主張しない。CLI側はキー列と完成数値Push列を分け、各所有層のSnapshotで検証する。移設・重複・保留は第9節、実装前提と統合検証の順序は[詳細設計](rdp-calc-detailed-design.md) 第12章に従う。
 
 ## 9. IA-1.0移行・追加テスト（現行正本）
 
