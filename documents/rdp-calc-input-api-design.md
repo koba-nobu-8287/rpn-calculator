@@ -2,6 +2,8 @@
 
 IA-1.0 / 2026-10-31（日本時間） / 設計確定・未実装
 
+2026-11-14追記：実装単位の仕様は[details](details/README.md)へ具体化した。本書の入力所有・公開API・CP-01～03を維持し、照合・補足・保留境界は[検証記録](details/review-and-validation.md)を参照する。
+
 基準：develop `eecb806`（PR #1・#2マージ済み）。ソースはHello worldのみ。以下は設計APIの改訂であり製品コードは変更しない。本書は入力所有・API・CLI解析・エラー優先順位の正本。[詳細設計](rdp-calc-detailed-design.md)の演算式・flags・独自設定変換は維持し、入力に関する旧記述は本書で置換する。[SI設計](rdp-calc-stack-input-detailed-design.md)と[試験仕様](rdp-calc-stack-input-test-cases.md)を併読する。
 
 ## 1. 比較と採用構成
@@ -223,6 +225,8 @@ Integer→Floatの有限だが精度欠落する変換、Float→Integerの非�
 5. 候補に移動・LAST X・flags・Liftを反映し不変条件検査、成功時のみ実stateと置換。候補不整合はInvariantViolation。
 
 アダプターは内部不整合→回復可能確保→独立に判定できるCore条件→InputTooLong→InputInProgress→InvalidDigit/InvalidNumber/IncompleteEntryの順。キーのmode不一致はCalculationへ包む。Float `1e`＋SetRadix(HEX)は入力と独立に判定可能なCalculation(NumericModeMismatch)。`1e`＋DivideはInput(IncompleteEntry)でありpreviewを除数にしない。重複点はInput(InvalidNumber)。同じ文字不正は左端を返す。
+
+2026-11-14具体化：同順位の内部不整合検査はCore→InputStateの順とし、Core破損はCalculation(InvariantViolation)、編集だけの破損はInput(InvariantViolation)へ包む。両方の人工破損では前者を返し、元の全状態を保持する（details/01、DD-048）。
 
 CLIは長さ→符号/接頭辞/桁存在→左端不正桁→有限Float変換。空、内部空白、符号重複、符号位置不正、桁なしはInvalidNumber。整数の数字列中のunderscore・全角・基数外文字はInvalidDigit。Floatの文法不一致（NaN/Inf/接頭辞/未完成指数を含む）はInvalidNumber。長さ超過＋不正桁はLiteral(InputTooLong)。解析失敗ではCoreを呼ばずCoreとの潜在エラー競争をしない。
 
