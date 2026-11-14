@@ -119,3 +119,16 @@ Mermaid 11.12.0の構文パーサーで8図すべてを検証し通過した（f
 - 9種類の幅・4基数の符号境界と長整数を含む760件の独立な数値参照計算が一致。Rust実装の試験結果ではない。
 - IAのMermaidは依存図1、クラス図1、シーケンス図3。フェンスと記述を確認したが画像レンダリング・Mermaidパーサー検証は未実施。
 - 製品Rust/Cargo変更なし。製品テストと実機試験は未実施。Git差分の空白検査を通過。
+
+## D-1.0 実装単位の具体化（2026-11-14）
+
+基準はPR #4マージ後のdevelop `8c960ccde4a57eed6979f8b35b646a0bceb23757`。全体設計v0.6、IA-1.0、SI-1.1、試験仕様を[14本の実装単位仕様](details/README.md)へ具体化した。過去の検証記録・未承認提案を現行契約へ昇格しない。
+
+| ID | 状態 | 判断 | 影響 |
+|---|---|---|---|
+| DD-045 | 継承・具体化 | 3クレートの責務を00～13へ分割し、Mermaidで依存・所有・遷移・原子性を記述 | 公開Command/API、CP-01～03、TBD状態・既存試験IDは維持 |
+| DD-046 | 内部契約の具体化 | RegisterBank::replace_allの長さ不一致はInvariantViolation、元領域保持 | 全体§4.11とdetails/03を同期。新しい公開variantは追加しない |
+| DD-047 | 実装経路の具体化 | Batch末尾編集は同じradixのSetRadixをセッションへapplyしてfinishする | 全体§9.2とdetails/11を同期。ENTER、Core mutable getter、public finish APIは追加しない |
+| DD-048 | 同順位検査の具体化 | セッション内部不整合はCore→InputStateの順で検査し、両方の人工破損ならCalculation(InvariantViolation) | IA §4とdetails/01を同期。CP-03の順位・variant集合は維持 |
+
+旧「完成数値の負入力拒否」というUnsigned CHSの注記をIAのCLI剰余受理・Core厳密値検査へ訂正した。算術式の変更ではない。照合・再点検結果と検証の範囲は[検証記録](details/review-and-validation.md)を参照する。製品Rust/Cargo・既存TBD管理表・試験期待値は変更しない。

@@ -9,6 +9,8 @@
 
 入力API・CLI変換・エラー順位の正本は[入力API設計 IA-1.0](rdp-calc-input-api-design.md)。CP-01～03を確定反映した。キー遷移は[SI-1.1](rdp-calc-stack-input-detailed-design.md)、試験の移設・追加は[試験仕様](rdp-calc-stack-input-test-cases.md)を参照する。算術とHP互換の未解決境界は維持する。
 
+実装単位への具体化は[detailsの仕様書一覧](details/README.md)（D-1.0、2026-11-14）を参照する。既存契約・TBD状態を維持し、照合結果と残る局所的判断は[検証記録](details/review-and-validation.md)へ記載する。
+
 ## 第1章：概要
 
 ### 1.1 目的・対象・範囲
@@ -351,7 +353,7 @@ impl RegisterBank {
 }
 ```
 
-newは1～1024か検査、try_reserveで確保失敗を返す。get/setは0≤index<lenを検査。replace_allは同一長だけ受理、全値は呼出側で検証済み。clearは個数を保ったまま0へ。get/valuesは不変、他は成功時変更。STO/RCLのLiftはCalculator側。単体試験：TEST-030、031、061。
+newは1～1024か検査、try_reserveで確保失敗を返す。get/setは0≤index<lenを検査。replace_allは同一長だけ受理、全値は呼出側で検証済み。長さ不一致は内部不変条件違反としてInvariantViolationを返し、元領域を保持する（details/03で具体化）。clearは個数を保ったまま0へ。get/valuesは不変、他は成功時変更。STO/RCLのLiftはCalculator側。単体試験：TEST-030、031、061。
 
 ### 4.12 format.rs
 
@@ -473,7 +475,7 @@ Unsignedの乗算は最大(2^64−1)^2を扱うためu128を使う。これをi1
 2. **SUB**：Unsigned/2の補数は(a−b) mod 2^W。Carryはraw比較a<b。1の補数は借り発生時に低Wビット差からさらに1を減じ、Wビットへ収めるend-around borrowを暫定採用。数学差でGを判定。SUBをADD(Y, CHS(X))へ置換しない。ゼロ表現はTBD-008。
 3. **MUL**：数学積を求めGを判定。Unsigned/2の補数は低Wビット。1の補数は絶対値の積をMで剰余化し、負ならそのWビット反転。ゼロ結果の符号はオペランドの符号bitの排他的論理和を暫定採用。W=1でもM=1で除算可能。CarryはKeep。
 4. **DIV/RMD**：商は0方向への切捨て、余りr=y−q*x。Unsignedはu128、符号付きはi128。2の補数最小値/−1もi128で計算し、DIVは結果を幅内へ戻しG=1。負のゼロ除数もDivisionByZero。1の補数のゼロ商は符号bitのXOR、ゼロ余りはYの符号bitを暫定継承。
-5. **符号反転/ABS**：数学値でGを判定。2の補数の最小値はrawを維持しG=1。UnsignedのCHSは0なら0、非0ならmod 2^Wで負数を表しG=1とする暫定演算（完成数値の負入力拒否とは異なる）。1の補数のCHSはraw反転、ABSは符号bitを見て負なら反転し−0を+0へ。
+5. **符号反転/ABS**：数学値でGを判定。2の補数の最小値はrawを維持しG=1。UnsignedのCHSは0なら0、非0ならmod 2^Wで負数を表しG=1とする暫定演算（CLIの負数リテラルはIA §2の剰余受理、Core Pushは完成rawの厳密検査であり、CHSとは別契約）。1の補数のCHSはraw反転、ABSは符号bitを見て負なら反転し−0を+0へ。
 6. **SQRT**：非負整数の最大k（k²≤x）を整数演算で計算。Carryはk²≠x。負値はDomainError、1の補数−0は0として計算し暫定+0。
 
 これらは暫定実装を可能にする具体式。特に1の補数のゼロ結果と範囲外ビット列はTBD-008、各命令のflagsはTBD-007。数学値だけに変換してrawを捨てる実装は禁止。
@@ -642,7 +644,7 @@ pub(crate) fn run_actions<W: std::io::Write>(session: &mut CliSession,
 | render_status | mode/radix/width/signed/F0～5/phase/lift/個数 | 不変 | TEST-055 |
 | exit_code | Syntax/Literal→2、Input/Calculation→1、Io→3 | 不変 | TEST-054 |
 
-run_actionsはinteractive=false時にShowStack/ShowStatus/Help/Exit/TestBitをInvalidArgumentとして実行前検査で拒否する。これによりワンショットstdoutを最終Xの1行に固定する。REPLでは照会の結果を表示し、Exitは以降を実行しない。Batchで最後にEditingが残った場合は、そのbufferをHP編集器のfinishで完全な数値として検査する。不完全なら終了1、成功ならその値をformat_numberで表示する（ENTERは挿入しない）。Batch出力には編集bufferを併記しない。line長は読み込み時に上限+1までに制限し、超過分を改行まで捨ててLineTooLongとして復帰する。
+run_actionsはinteractive=false時にShowStack/ShowStatus/Help/Exit/TestBitをInvalidArgumentとして実行前検査で拒否する。これによりワンショットstdoutを最終Xの1行に固定する。REPLでは照会の結果を表示し、Exitは以降を実行しない。Batchで最後にEditingが残った場合は、そのbufferをHP編集器のfinishで完全な数値として検査する。不完全なら終了1、成功ならその値をformat_numberで表示する（ENTERは挿入しない）。CLIからの実装経路は、現在radixと同じSetRadixをHpInputSessionへapplyして既存のfinish契約を利用する（details/11）。Batch出力には編集bufferを併記しない。line長は読み込み時に上限+1までに制限し、超過分を改行まで捨ててLineTooLongとして復帰する。
 
 ### 9.3 構文（SPEC-CLI）
 
