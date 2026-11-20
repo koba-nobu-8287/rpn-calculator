@@ -697,3 +697,208 @@ fn formatting_uses_raw_nondecimal_and_keeps_negative_zero() {
     );
     assert_eq!(calc.snapshot(), before);
 }
+
+// TEST-049/050/052/063: each command uses the original X and independent flags.
+#[test]
+fn logic_shift_rotate_and_edit_command_effects() {
+    let n = |value| int(value, 8);
+    for (command, expected, binary) in [
+        (Command::And, 0x05, true),
+        (Command::Or, 0xaf, true),
+        (Command::Xor, 0xaa, true),
+        (Command::Not, 0xf0, false),
+    ] {
+        for carry in [false, true] {
+            for range in [false, true] {
+                let mut calc =
+                    Calculator::with_config(config(8, SignedMode::TwosComplement)).unwrap();
+                calc.execute_all([
+                    Command::Push(n(0xa5)),
+                    Command::Push(n(0x0f)),
+                    Command::SetFlag {
+                        index: 4,
+                        value: carry,
+                    },
+                    Command::SetFlag {
+                        index: 5,
+                        value: range,
+                    },
+                    command,
+                ])
+                .unwrap();
+                let snapshot = calc.snapshot();
+                assert_eq!(
+                    snapshot.stack,
+                    [expected, if binary { 0 } else { 0xa5 }, 0, 0].map(n)
+                );
+                assert_eq!(snapshot.last_x, n(0x0f));
+                assert_eq!(snapshot.flags.carry(), carry);
+                assert_eq!(snapshot.flags.out_of_range(), range);
+            }
+        }
+    }
+    for (mode, command, expected) in [
+        (SignedMode::TwosComplement, Command::ShiftLeft, 0x02),
+        (SignedMode::TwosComplement, Command::ShiftRight, 0x40),
+        (
+            SignedMode::TwosComplement,
+            Command::ShiftRightArithmetic,
+            0xc0,
+        ),
+        (SignedMode::Unsigned, Command::ShiftRightArithmetic, 0x40),
+        (SignedMode::TwosComplement, Command::RotateLeft, 0x03),
+        (SignedMode::TwosComplement, Command::RotateRight, 0xc0),
+        (SignedMode::TwosComplement, Command::RotateLeftCarry, 0x02),
+        (SignedMode::TwosComplement, Command::RotateRightCarry, 0x40),
+    ] {
+        let mut calc = Calculator::with_config(config(8, mode)).unwrap();
+        calc.execute_all([
+            Command::Push(n(0x81)),
+            Command::SetFlag {
+                index: 5,
+                value: true,
+            },
+            command,
+        ])
+        .unwrap();
+        assert_eq!(raw(&calc), expected, "{command:?}");
+        assert_eq!(calc.snapshot().last_x, n(0x81));
+        assert!(calc.snapshot().flags.carry());
+        assert!(calc.snapshot().flags.out_of_range());
+    }
+    let mut calc = Calculator::with_config(config(8, SignedMode::Unsigned)).unwrap();
+    calc.execute(Command::MaskLeft(3)).unwrap();
+    assert_eq!(raw(&calc), 0xe0);
+    calc.execute(Command::MaskRight(3)).unwrap();
+    assert_eq!(raw(&calc), 0x07);
+    calc.execute(Command::EditBit {
+        index: 0,
+        edit: BitEdit::Clear,
+    })
+    .unwrap();
+    let before = calc.snapshot();
+    assert_eq!(raw(&calc), 0x06);
+    assert_eq!(calc.test_bit(0), Ok(false));
+    assert_eq!(calc.test_bit(1), Ok(true));
+    assert_eq!(calc.snapshot(), before);
+    calc.execute(Command::EditBit {
+        index: 0,
+        edit: BitEdit::Set,
+    })
+    .unwrap();
+    assert_eq!(raw(&calc), 0x07);
+
+    for (command, expected) in [(Command::ShiftLeft, 0), (Command::RotateLeft, 1)] {
+        let mut calc = Calculator::with_config(config(1, SignedMode::Unsigned)).unwrap();
+        calc.execute_all([Command::Push(int(1, 1)), command])
+            .unwrap();
+        assert_eq!(raw(&calc), expected);
+        assert!(calc.snapshot().flags.carry());
+    }
+}
+
+// IA-C011,013. Construct the documented initial stack and LAST X through public commands.
+#[test]
+fn batch_failure_preserves_exact_specification_fixture() {
+    let mut calc = Calculator::with_config(CalculatorConfig {
+        radix: Radix::Decimal,
+        ..config(8, SignedMode::TwosComplement)
+    })
+    .unwrap();
+    let n = |value| int(value, 8);
+    calc.execute_all([
+        Command::Push(n(9)),
+        Command::ChangeSign,
+        Command::ClearX,
+        Command::Push(n(4)),
+        Command::Push(n(3)),
+        Command::Push(n(2)),
+        Command::Push(n(5)),
+    ])
+    .unwrap();
+    assert_eq!(calc.snapshot().stack, [5, 2, 3, 4].map(n));
+    assert_eq!(calc.snapshot().last_x, n(9));
+
+    assert_eq!(
+        calc.execute_all([
+            Command::Push(n(5)),
+            Command::Push(n(0)),
+            Command::Divide,
+            Command::Push(n(7)),
+        ]),
+        Err(CalcError::DivisionByZero)
+    );
+    assert_eq!(calc.snapshot().stack, [0, 5, 5, 2].map(n));
+    assert_eq!(calc.snapshot().last_x, n(9));
+    assert_eq!(calc.snapshot().stack_lift, StackLift::Enabled);
+    expect_error(&mut calc, Command::Remainder, CalcError::DivisionByZero);
+}
+
+#[test]
+fn unary_arithmetic_and_float_subnormals() {
+    for (mode, input, command, expected, out_of_range) in [
+        (
+            SignedMode::TwosComplement,
+            0xfb,
+            Command::Absolute,
+            5,
+            false,
+        ),
+        (
+            SignedMode::TwosComplement,
+            0x80,
+            Command::ChangeSign,
+            0x80,
+            true,
+        ),
+        (SignedMode::Unsigned, 0xfb, Command::Absolute, 0xfb, false),
+        (SignedMode::Unsigned, 0, Command::ChangeSign, 0, false),
+        (SignedMode::Unsigned, 1, Command::ChangeSign, 0xff, true),
+        (
+            SignedMode::OnesComplement,
+            0xff,
+            Command::Absolute,
+            0,
+            false,
+        ),
+        (SignedMode::OnesComplement, 0xff, Command::Sqrt, 0, false),
+    ] {
+        let mut calc = Calculator::with_config(config(8, mode)).unwrap();
+        calc.execute_all([Command::Push(int(input, 8)), command])
+            .unwrap();
+        assert_eq!(raw(&calc), expected);
+        assert_eq!(calc.snapshot().flags.out_of_range(), out_of_range);
+        assert_eq!(calc.snapshot().last_x, int(input, 8));
+    }
+    let mut calc = Calculator::with_config(config(8, SignedMode::Unsigned)).unwrap();
+    calc.execute_all([
+        Command::SetFlag {
+            index: 4,
+            value: true,
+        },
+        Command::Push(int(16, 8)),
+        Command::Sqrt,
+    ])
+    .unwrap();
+    assert_eq!(raw(&calc), 4);
+    assert!(!calc.snapshot().flags.carry());
+
+    calc.execute_all([
+        Command::ClearStack,
+        Command::SetNumericMode(NumericMode::FloatingPoint),
+        Command::Push(Number::Float(0.5)),
+        Command::Push(Number::Float(0.25)),
+        Command::Add,
+    ])
+    .unwrap();
+    assert_eq!(calc.snapshot().stack[0], Number::Float(0.75));
+    let tiny = f64::from_bits(1);
+    calc.execute_all([
+        Command::Push(Number::Float(tiny)),
+        Command::Push(Number::Float(2.0)),
+        Command::Divide,
+    ])
+    .unwrap();
+    assert_eq!(calc.snapshot().stack[0].as_float().unwrap().to_bits(), 0);
+    assert_eq!(calc.snapshot().last_x, Number::Float(2.0));
+}

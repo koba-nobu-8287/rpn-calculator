@@ -1,0 +1,51 @@
+use crate::{BitEdit, Number, NumericMode, Radix, RotateKind, SignedMode, WordSize};
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ValueUpdate {
+    Start(Number),
+    ReplaceX(Number),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Command {
+    Push(Number),
+    Enter,
+    SwapXY,
+    RollUp,
+    RollDown,
+    RecallLastX,
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Remainder,
+    ChangeSign,
+    Absolute,
+    Sqrt,
+    And,
+    Or,
+    Xor,
+    Not,
+    ShiftLeft,
+    ShiftRight,
+    ShiftRightArithmetic,
+    RotateLeft,
+    RotateRight,
+    RotateLeftCarry,
+    RotateRightCarry,
+    RotateN(RotateKind),
+    MaskLeft(u8),
+    MaskRight(u8),
+    EditBit { index: u8, edit: BitEdit },
+    CountBits,
+    SetRadix(Radix),
+    SetWordSize(WordSize),
+    SetSignedMode(SignedMode),
+    SetNumericMode(NumericMode),
+    Store(usize),
+    Recall(usize),
+    SetFlag { index: u8, value: bool },
+    ClearX,
+    ClearStack,
+    ClearRegisters,
+}
