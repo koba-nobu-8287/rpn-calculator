@@ -1,5 +1,7 @@
 # rdp-calc 未確定事項一覧
 
+2026-11-21 製品仕様（TBD-021 / DD-049）：Float編集でBS後に仮数の符号だけが残る場合、bufferを `0`、Xを `+0.0` とし、Editing / MantissaのままLiftを保持する。次の数字は追記する。IA-G012（旧SI-H003）を製品受入試験に含める。HP実機との照合はTBD-017で継続する。 現在の集計はResolved 7 / Partial 11 / Open 4。以下の旧集計・保留記述は決定前の記録。
+
 文書版：v0.6 + IA-1.0/SI-1.1 / 2026-10-31 / UTF-8・LF
 
 [詳細設計書](rdp-calc-detailed-design.md) 第11章と同じ管理表。仕様の正本は詳細設計書の各章、TBDの管理表は本ファイルとする。変更時には第11章も同期する。2026-10-31現在、Resolved 6件、Partial 11件、Open 5件（全22件）。過去ClosedはResolvedと同義で、状態名だけ統一した。Partialは資料上の事実の一部が確定し、実装契約の選択または境界確認が残る。暫定仕様はHP-16C確認済み仕様ではない。
@@ -28,7 +30,7 @@
 | TBD-018 | Open | 表示桁・ゼロ埋め・実機表示窓 | format,CLI | F3で非DEC整数0詰め、Float最短往復表現、表示窓なし | 表示節、Wが桁数で割切れない場合の実機比較 | F3適用外を含む全基数の表示例確定 | Low | 基本CLIは先行可。表示互換判定前必須 |
 | TBD-019 | Open | レジスタ演算、Iレジスタ、間接指定 | register,command | 未対応、直接STO/RCLのみ | Storage/Program節と対象機能レビュー | 命令集合・番号規則・flags・スタック影響確定 | Medium | 第2段階の追加機能実装前 |
 | TBD-020 | Partial | HP-16C機能全体の到達範囲 | command,docs | 内蔵プログラミングを対象外、ABSをHP標準へ訂正。外部CLI自動化を正式用途とする | SRC-10/原版p.44。非プログラム命令の必須/将来/対象外の完全な棚卸しは継続 | Resolvedは仕様確定。Partialは右記の残件を継続。詳細は照合記録 | Medium | 2026-10-25確認。残件の判断前に完全互換と扱わない |
-| TBD-021 | Open | Float BSで符号だけ残る境界 | rdp-input | -1からBSで符号だけ残る穴は未解決。CLI単独-→0（CP-02）とは別 | SI-H003、原版/実機の符号0・指数・点削除 | HP観測と製品のbuffer/X/phase/part/Lift期待値を確定 | High | 当該BS境界の実装前。一般編集は先行可 |
+| TBD-021 | Resolved | Float BSで符号だけ残る境界 | rdp-input | 正0へ正規化し編集・Liftを保持 | DD-049、IA-G012（SI-H003） | 製品動作確定。実機照合は017 | High | 2026-11-21確定 |
 | TBD-022 | Resolved | エラー優先順位とvariant | core,rdp-input,cli | CP-03、IA §4の順位・依存ガード・型分離を採用 | IAとIA-C/IA-G試験 | 設計確定。実装時variant/payloadと全状態を検査 | Medium | 複合原因試験を必須化。実機番号は012に残る |
 
 ## 実装開始時に先に選択する項目

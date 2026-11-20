@@ -197,11 +197,8 @@ impl HpInputSession {
             }
             Key::Backspace => {
                 buf.pop();
-                if buf == "-" {
-                    // TBD-021: defer this transition, preserving the original session.
-                    return Err(CalcError::UnsupportedOperation.into());
-                }
-                if buf.is_empty() {
+                if buf.is_empty() || buf == "-" {
+                    buf.clear();
                     buf.push('0')
                 }
             }

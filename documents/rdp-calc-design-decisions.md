@@ -1,5 +1,7 @@
 # rdp-calc 設計判断記録
 
+2026-11-21 製品仕様（TBD-021 / DD-049）：Float編集でBS後に仮数の符号だけが残る場合、bufferを `0`、Xを `+0.0` とし、Editing / MantissaのままLiftを保持する。次の数字は追記する。IA-G012（旧SI-H003）を製品受入試験に含める。HP実機との照合はTBD-017で継続する。
+
 文書版：v0.5 + SI-1.0補遺 / 2026-10-31 / UTF-8・LF
 
 対象：[詳細設計書](rdp-calc-detailed-design.md)、[未確定事項一覧](rdp-calc-tbd-list.md)
@@ -130,5 +132,6 @@ Mermaid 11.12.0の構文パーサーで8図すべてを検証し通過した（f
 | DD-046 | 内部契約の具体化 | RegisterBank::replace_allの長さ不一致はInvariantViolation、元領域保持 | 全体§4.11とdetails/03を同期。新しい公開variantは追加しない |
 | DD-047 | 実装経路の具体化 | Batch末尾編集は同じradixのSetRadixをセッションへapplyしてfinishする | 全体§9.2とdetails/11を同期。ENTER、Core mutable getter、public finish APIは追加しない |
 | DD-048 | 同順位検査の具体化 | セッション内部不整合はCore→InputStateの順で検査し、両方の人工破損ならCalculation(InvariantViolation) | IA §4とdetails/01を同期。CP-03の順位・variant集合は維持 |
+| DD-049 | Float編集で負数の最後の数字をBS | 正0へ正規化し編集を継続、Lift保持 | 2026-11-21 製品判断。TBD-021解決 |
 
 旧「完成数値の負入力拒否」というUnsigned CHSの注記をIAのCLI剰余受理・Core厳密値検査へ訂正した。算術式の変更ではない。照合・再点検結果と検証の範囲は[検証記録](details/review-and-validation.md)を参照する。製品Rust/Cargo・既存TBD管理表・試験期待値は変更しない。

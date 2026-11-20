@@ -1,5 +1,7 @@
 # rdp-calc スタック・入力 単体テスト仕様
 
+2026-11-21 製品仕様（TBD-021 / DD-049）：Float編集でBS後に仮数の符号だけが残る場合、bufferを `0`、Xを `+0.0` とし、Editing / MantissaのままLiftを保持する。次の数字は追記する。IA-G012（旧SI-H003）を製品受入試験に含める。HP実機との照合はTBD-017で継続する。
+
 版：SI-1.1 / 2026-10-31 / 基準develop：`eecb806`（旧SI-1.0のfixtureを継承）
 
 対応：[詳細設計](rdp-calc-stack-input-detailed-design.md)、[詳細設計v0.6](rdp-calc-detailed-design.md)。本書は実行結果ではなく、実装時のfixture仕様。現リポジトリのRustはHello worldのみで既存の実行可能なテストはない。既存TEST番号はv0.5の試験仕様を指す。
@@ -123,7 +125,7 @@ SI-T073は符号切替後に指数を編集しても再Liftしない試験であ
 |---|---|---|---|---|---|---|
 | SI-H001 初回幅外桁 | W1 Unsigned HEX、[1,0,0,0]/0、I_E、flags標準 | digit2 | V5はSI-T050。HPの表示X=0は確認 | HPの他段・Lift・編集状態・flagsは未確認、勝手に補わない | H32脚注、TBD-013（CLI CP-01とは別） | P1 |
 | SI-H002 DEC符号bit | W8 Twos DEC、[12,2,3,4]/9、E_D("12") | digit8 | V5数学値範囲では拒否。HPには符号bit到達の説明あり | DECキー例として128→raw80を確定するには対象例を確認。Lift/flagsも記録 | H32、TBD-013（CLI CP-01とは別） | P1 |
-| SI-H003 負数最終桁削除 | Float、[-1,2,3,4]/9、E_E("-1")、flags標準 | BS | 旧提案（CP-02対象外）：[+0,2,3,4]/9、E_E("0")、flags K | **提案期待値**。承認前は製品必須試験にしない。HP動作は別確認 | TBD-021、017 | P1 |
+| SI-H003 負数最終桁削除 | Float、[-1,2,3,4]/9、E_E("-1")、flags標準 | BS | [+0,2,3,4]/9、E_E("0")、flags K | 製品確定。実機は未確認 | DD-049、017 | P1 |
 | SI-H004 複数原因（移管済み） | Float、E_D("1e") | BASE HEX | CP-03でCalculation(NumericModeMismatch)に確定 | 通常試験IA-G004へ移管、ここでは重複実行しない | TBD-022 Resolved | P0 |
 | SI-H005 HP FLOAT | W64 HEX、[0,0x25E47,3,4]/9、I_D | 実機FLOAT | X=155207.0、Y/Z/T/L=0、W56、Lift Eは過去確認 | 保存領域・f64フラグ対応と新Command未設計。SetNumericModeのテストに流用しない | V5 TEST-072、006 | P1 |
 | SI-H006 HP WSIZE領域 | W16、R0=0x1234,R1=0x5678、スタック任意の合法値 | HP WSIZE32、16 | R0がW32で0x56781234、復元幅で元R0/R1 | 直接SetWordSizeには要求しない。全スタック/Lのfixtureは新Command設計時に追加 | V5 TEST-071、004/014 | P1 |
@@ -186,7 +188,7 @@ struct TransitionCase {
 | TEST-020～038 | キー操作はrdp-inputへ。TEST-032のCLI 0xGだけIA-L012へ移す |
 | TEST-043/053/054/056/060 | CLI parse/表示/終了コードはIA-L群と対応、Core formatはそのまま |
 | TEST-029、SI-T024 | Editing Push拒否をセッションへ配置変更、IA-C002と対比 |
-| SI-H003 | Float BS境界は021 Open、CLIのIA-L010で代替しない |
+| SI-H003 | 製品試験IA-G012へ移管。実機照合は017 |
 | SI-H004 | IA-G004へ移管して確定試験化、旧IDは追跡タグのみ |
 
 追加ケースはIA-L（CLI）、IA-C（Core）、IA-G（共通キー/セッション）。全失敗は全snapshotと内部part、全成功は4段/L/flags/設定/記憶/Liftを比較する。Floatはto_bits、Ones負0はraw比較。明示しないフィールドは保持。L群のparse単体はCoreを呼ばず、副作用がないことをspyで確認する。
@@ -264,6 +266,6 @@ InvalidWordSize/InvalidRegisterCount/AllocationFailedは生成・確保経路、
 | IA-G009 | Enter→Digit3 | SI-T004の値、Disabled保持。CLI完成PushのIA-C003とLiftを区別 |
 | IA-G010 | InputSnapshotのbuffer/part/Core snapshotを変更 | 実セッション全状態不変。SI-T071を拡張 |
 | IA-G011 | HP Editing中にCLI pending入力への切替要求 | InputInProgress、Core・HP編集・pending不変、二重編集禁止 |
-| IA-G012 | Float Editing("-1")でBS | TBD-021 Open、SI-H003として保留。CP-02合格扱いにしない |
+| IA-G012 | Float Editing("-1")でBS | Editing("0")、X=+0.0、Mantissa、Lift保持。次の2でbuffer="02" |
 
 IA-G003の表記「Input経由」はセッション経由という意味で、エラーvariantはSessionError::Calculation(IntegerOutOfRange)。未確定IA-G012を通常成功件数へ算入しない。旧SI-H001/002/005～008もHP保留のまま。

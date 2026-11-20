@@ -1,5 +1,7 @@
 # rdp-calc RPNスタック・数値入力 詳細設計
 
+2026-11-21 製品仕様（TBD-021 / DD-049）：Float編集でBS後に仮数の符号だけが残る場合、bufferを `0`、Xを `+0.0` とし、Editing / MantissaのままLiftを保持する。次の数字は追記する。IA-G012（旧SI-H003）を製品受入試験に含める。HP実機との照合はTBD-017で継続する。 現在の集計はResolved 7 / Partial 11 / Open 4。以下の旧集計・保留記述は決定前の記録。
+
 版：SI-1.1（入力API分離反映） / 2026-10-31（日本時間） / UTF-8・LF
 
 現行入力APIは[入力API設計 IA-1.0](rdp-calc-input-api-design.md)を優先する。以下のv0.5/HP照合は過去の根拠を維持する。状態表はCore単体ではなくHpInputSession全体に適用する。
