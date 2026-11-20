@@ -6,6 +6,6 @@ edition = "2024"
 [dependencies]
 
 [workspace]
-members = ["crates/rdp-core"]
-default-members = [".", "crates/rdp-core"]
+members = ["crates/rdp-core", "crates/rdp-input"]
+default-members = [".", "crates/rdp-core", "crates/rdp-input"]
 resolver = "3"
