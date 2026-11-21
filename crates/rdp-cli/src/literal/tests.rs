@@ -5,6 +5,7 @@ fn context(bits: u8, signed_mode: SignedMode) -> ParseContext {
         radix: Radix::Decimal,
         mode: NumericMode::Integer,
         word_config: WordConfig {
+            ones_zero_mode: rdp_core::OnesZeroMode::Canonical,
             size: WordSize::new(bits).unwrap(),
             signed_mode,
         },

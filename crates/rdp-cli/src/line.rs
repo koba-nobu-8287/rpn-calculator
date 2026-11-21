@@ -175,7 +175,7 @@ impl CliSession {
                 }
                 Action::Help => writeln!(
                     output,
-                    "Numbers push values. Use + sub * / for arithmetic, keys \"5 enter 3 +\" for key entry, stack/status to inspect, exit to quit."
+                    "Numbers push values. Use + sub * / for arithmetic, keys \"5 enter 3 +\" for key entry, oneszero canonical|raw for one's-complement arithmetic, stack/status to inspect, exit to quit."
                 )?,
             }
         }

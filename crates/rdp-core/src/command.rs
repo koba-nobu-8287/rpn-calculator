@@ -1,4 +1,4 @@
-use crate::{BitEdit, Number, NumericMode, Radix, RotateKind, SignedMode, WordSize};
+use crate::{BitEdit, Number, NumericMode, OnesZeroMode, Radix, RotateKind, SignedMode, WordSize};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ValueUpdate {
@@ -41,6 +41,7 @@ pub enum Command {
     SetRadix(Radix),
     SetWordSize(WordSize),
     SetSignedMode(SignedMode),
+    SetOnesZeroMode(OnesZeroMode),
     SetNumericMode(NumericMode),
     Store(usize),
     Recall(usize),

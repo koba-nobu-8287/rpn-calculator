@@ -33,9 +33,16 @@ pub enum SignedMode {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OnesZeroMode {
+    Canonical,
+    Raw,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WordConfig {
     pub size: WordSize,
     pub signed_mode: SignedMode,
+    pub ones_zero_mode: OnesZeroMode,
 }
 
 impl WordConfig {
@@ -63,6 +70,7 @@ impl Default for CalculatorConfig {
             word_config: WordConfig {
                 size: WordSize::W16,
                 signed_mode: SignedMode::TwosComplement,
+                ones_zero_mode: OnesZeroMode::Canonical,
             },
             radix: Radix::Hexadecimal,
             numeric_mode: NumericMode::Integer,

@@ -66,6 +66,11 @@ fn command(name: &str, rest: &mut &str) -> Result<Option<Command>, CliError> {
             let n = num(rest, name)?;
             SetWordSize(WordSize::new(n).map_err(|_| CliError::InvalidArgument(n.to_string()))?)
         }
+        "oneszero" => SetOnesZeroMode(match arg(rest, name)?.to_ascii_lowercase().as_str() {
+            "canonical" => OnesZeroMode::Canonical,
+            "raw" => OnesZeroMode::Raw,
+            s => return Err(CliError::InvalidArgument(s.into())),
+        }),
         "signed" => SetSignedMode(match arg(rest, name)?.to_ascii_lowercase().as_str() {
             "unsigned" => SignedMode::Unsigned,
             "ones" => SignedMode::OnesComplement,

@@ -5,6 +5,7 @@ fn session() -> HpInputSession {
     HpInputSession::new(
         Calculator::with_config(CalculatorConfig {
             word_config: WordConfig {
+                ones_zero_mode: rdp_core::OnesZeroMode::Canonical,
                 size: WordSize::new(8).unwrap(),
                 signed_mode: SignedMode::TwosComplement,
             },

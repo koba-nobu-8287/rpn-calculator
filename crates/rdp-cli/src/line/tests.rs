@@ -93,6 +93,7 @@ fn fixture() -> CliSession {
         Calculator::with_config(CalculatorConfig {
             radix: Radix::Decimal,
             word_config: WordConfig {
+                ones_zero_mode: rdp_core::OnesZeroMode::Canonical,
                 size: WordSize::new(8).unwrap(),
                 signed_mode: SignedMode::TwosComplement,
             },
@@ -226,4 +227,17 @@ fn queries_and_unsupported_words_are_distinct_from_unknown_syntax() {
     assert!(
         matches!(session().run_line("G",&mut Vec::new(),true),Err(LineError::Syntax(CliError::UnknownCommand(s))) if s=="G")
     );
+}
+
+#[test]
+fn oneszero_errors_leave_the_entire_line_unexecuted() {
+    let mut s = session();
+    let before = s.snapshot();
+    let mut output = Vec::new();
+    assert!(matches!(s.run_line("1 oneszero", &mut output, true),
+        Err(LineError::Syntax(CliError::MissingArgument(name))) if name == "oneszero"));
+    assert_eq!(s.snapshot(), before);
+    assert!(matches!(s.run_line("1 oneszero other", &mut output, true),
+        Err(LineError::Syntax(CliError::InvalidArgument(value))) if value == "other"));
+    assert_eq!(s.snapshot(), before);
 }

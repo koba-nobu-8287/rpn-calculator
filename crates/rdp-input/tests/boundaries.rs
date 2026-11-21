@@ -90,7 +90,11 @@ fn all_widths_and_radices() {
             ] {
                 let mut s = HpInputSession::new(
                     Calculator::with_config(CalculatorConfig {
-                        word_config: WordConfig { size, signed_mode },
+                        word_config: WordConfig {
+                            ones_zero_mode: rdp_core::OnesZeroMode::Canonical,
+                            size,
+                            signed_mode,
+                        },
                         radix,
                         ..Default::default()
                     })
