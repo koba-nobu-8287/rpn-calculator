@@ -30,6 +30,7 @@ flowchart TD
 |---|---|---|
 | SetRadix | 数値raw・L・flags・Lift保持、表示基数だけ変更 | Floatの非DECはNumericModeMismatch |
 | SetWordSize | 全4段/L/Riを縮小なら低位保持、拡大ならゼロ拡張 | FloatではNumericModeMismatch |
+| SetOnesZeroMode | 全値・flags・Liftを保持し、算術のゼロ処理設定のみ更新 | 全数値モードで可 |
 | SetSignedMode | 全raw保持で数学値解釈だけ変更 | FloatではNumericModeMismatch |
 
 幅変更のflags/LiftはKeep。Twos負値も幅拡大で符号拡張しない。W8 rawFF→W16 raw00FFであり、数学値−1を保持する変換ではない。幅縮小後に戻しても捨てたbitは復元しない。同じ幅・符号・基数の指定でも、セッションでは旧編集をfinishする。
@@ -67,10 +68,10 @@ f64から元整数へ戻す検証では、先に広い型・厳密な境界で�
 | SetNumericMode(Float) | HP FLOATはX=Y×2^X、Y/Z/T/L=0、W56、Lift E、記憶領域の数値変換なし |
 | Float SetRadix(nonDEC)拒否 | 実機の整数復帰キーを再現するなら新しいCommand設計が必要 |
 
-これらは同じAPIの別オプションとして暗黙切替しない。TBD-004/006/014のAPI・領域設計が済むまで、TEST-071/072やSI-H005/006を現行APIの必須成功試験へ転用しない。
+これらは同じAPIの別オプションとして暗黙切替しない。HP FLOATのTEST-072とSI-H005は実機との差を記録する参考例とする。HP WSIZEのTEST-071とSI-H006はTBD-004/014で継続する。
 
 ## 8. 受入・TBD
 
 TEST-039～042/061、SI-T041～044/053～060/075、IA-C010、IA-G004、SI-T056。R0だけが変換不能な場合にも、4段/L/全Ri/設定/flags/Lift/編集を全保持する。旧HEXのAをDECへ変更して10を保持し、新基数で再解析しない。
 
-TBD-004/006はPartial、005はResolved。実装前に暫定全領域変換を採用するか実装記録へ残す。f64演算精度のTBD-016、編集の017/021と区別し、既存HP保留を成功へ昇格しない。
+TBD-006は§4～6の厳密な全領域変換で確定。幅変更における記憶領域の扱いはTBD-004で継続する。f64演算精度のTBD-016、編集の017/021と区別し、既存HP保留を成功へ昇格しない。

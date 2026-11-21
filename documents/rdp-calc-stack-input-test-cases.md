@@ -127,7 +127,7 @@ SI-T073は符号切替後に指数を編集しても再Liftしない試験であ
 | SI-H002 DEC符号bit | W8 Twos DEC、[12,2,3,4]/9、E_D("12") | digit8 | V5数学値範囲では拒否。HPには符号bit到達の説明あり | DECキー例として128→raw80を確定するには対象例を確認。Lift/flagsも記録 | H32、TBD-013（CLI CP-01とは別） | P1 |
 | SI-H003 負数最終桁削除 | Float、[-1,2,3,4]/9、E_E("-1")、flags標準 | BS | [+0,2,3,4]/9、E_E("0")、flags K | 製品確定。実機は未確認 | DD-049、017 | P1 |
 | SI-H004 複数原因（移管済み） | Float、E_D("1e") | BASE HEX | CP-03でCalculation(NumericModeMismatch)に確定 | 通常試験IA-G004へ移管、ここでは重複実行しない | TBD-022 Resolved | P0 |
-| SI-H005 HP FLOAT | W64 HEX、[0,0x25E47,3,4]/9、I_D | 実機FLOAT | X=155207.0、Y/Z/T/L=0、W56、Lift Eは過去確認 | 保存領域・f64フラグ対応と新Command未設計。SetNumericModeのテストに流用しない | V5 TEST-072、006 | P1 |
+| SI-H005 HP FLOAT | W64 HEX、[0,0x25E47,3,4]/9、I_D | 実機FLOAT | X=155207.0、Y/Z/T/L=0、W56、Lift Eは過去確認 | 製品対象外の実機参照例。SetNumericModeの受入には厳密な全領域変換を用いる | V5 TEST-072、006 | P1 |
 | SI-H006 HP WSIZE領域 | W16、R0=0x1234,R1=0x5678、スタック任意の合法値 | HP WSIZE32、16 | R0がW32で0x56781234、復元幅で元R0/R1 | 直接SetWordSizeには要求しない。全スタック/Lのfixtureは新Command設計時に追加 | V5 TEST-071、004/014 | P1 |
 | SI-H007 エラー解除キー | 除算失敗画面、コアはSI-T061の状態 | 実機の数字2 | 表示解除は過去確認 | 数字2を計算にも渡すか、解除だけで消費するか未確認 | TBD-012 | P2 |
 | SI-H008 実機最大桁 | W1/3/8/64、全基数、Float仮数/指数 | 上限まで入力後もう1桁 | V5は256文字＋範囲拒否 | 実機の無視／拒否／丸め／表示窓と内部値、Lift、flagsを実測・資料確認 | TBD-013/017/018 | P1 |
@@ -141,7 +141,7 @@ SI-T073は符号切替後に指数を編集しても再Liftしない試験であ
 | TEST-010～014 | SI-T001～003、007～009、012～015、018～019 | 既存の低水準スタック試験を保持。今回のphase/Lift/L/flags付きケースで統合試験を拡張 |
 | TEST-020～029 | SI-T004～006、010、016、023～026、041～043、061～063 | 既存の状態遷移を具体化。実装で二重登録する必要はなく旧IDを関連タグにする |
 | TEST-030/031 | SI-T020～022、065、067 | STO/RCLと全状態失敗を拡張 |
-| TEST-032～038 | SI-T027～040、045～052、074 | CHS、編集、符号、上限の拡張。SI-H003は未確定として分離 |
+| TEST-032～038 | SI-T027～040、045～052、074 | CHS、編集、符号、上限の拡張。SI-H003の製品期待値はIA-G012へ移管 |
 | TEST-039～043 | SI-T044、053～060、075 | 独自設定APIの期待値を具体化。実機変換ケースは分離 |
 | TEST-047/048 | SI-T061～065、070 | 単一Commandとexecute_allのロールバック範囲を比較 |
 | TEST-061/062 | SI-T030、055～057、064、071～073 | 初期化、有限値、符号0、snapshotを補足 |
@@ -269,3 +269,9 @@ InvalidWordSize/InvalidRegisterCount/AllocationFailedは生成・確保経路、
 | IA-G012 | Float Editing("-1")でBS | Editing("0")、X=+0.0、Mantissa、Lift保持。次の2でbuffer="02" |
 
 IA-G003の表記「Input経由」はセッション経由という意味で、エラーvariantはSessionError::Calculation(IntegerOutOfRange)。未確定IA-G012を通常成功件数へ算入しない。旧SI-H001/002/005～008もHP保留のまま。
+
+### 設定変更の製品受入（TBD-001/006/008）
+
+- リセット直後のLiftがDisabledであることと、次の初回入力がY/Z/Tを保持することを確認する。
+- 編集中の `oneszero raw` は旧設定でfinishしてから設定を変更する。Idleで切り替えた場合は全値・flags・Liftが等しいことを確認する。リセット後は生成時の設定に戻る。
+- Integer→FloatでXが変換可能でも、R0が `2^53+1` なら全状態を保持して失敗する。対応する成功例はW64で `2^53`。Float→Integerでは小数部のある `1.5` を拒否する。

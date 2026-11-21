@@ -68,7 +68,7 @@ CalculatorSnapshotのpublicフィールドはstack: [Number;4]、last_x: Number�
 
 snapshotはResultを返さない既存APIを維持し、Vec複製時のOS OOMまで回復保証しない。状態変更を伴う回復可能確保の経路は01のAllocationFailed契約に従う。
 
-Calculatorは生成時設定の独立コピーを保持する。resetは現在の設定を捨てて生成時設定へ戻し、4段/L/全レジスタを正0、flags=0、Lift=Disabled。セッション側は同時に編集を捨てる（09）。
+Calculatorは生成時設定の独立コピーを保持する。レジスタ命令は直接指定のSTO/RCLのみ（TBD-019）。resetは現在の設定を捨てて生成時設定（OnesZeroModeを含む）へ戻し、4段/L/全レジスタを正0、flags=0、Lift=Disabled。セッション側は同時に編集を捨てる（09）。
 
 ## 6. 受入・TBD
 
