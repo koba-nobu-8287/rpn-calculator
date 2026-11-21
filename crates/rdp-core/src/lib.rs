@@ -17,7 +17,9 @@ mod word;
 pub use bitwise::{BitEdit, RotateKind};
 pub use calculator::Calculator;
 pub use command::{Command, ValueUpdate};
-pub use config::{CalculatorConfig, NumericMode, Radix, SignedMode, StackLift, WordConfig};
+pub use config::{
+    CalculatorConfig, NumericMode, OnesZeroMode, Radix, SignedMode, StackLift, WordConfig,
+};
 pub use error::CalcError;
 pub use flags::Flags;
 pub use format::format_number;

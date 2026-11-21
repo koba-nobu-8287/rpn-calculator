@@ -1,5 +1,6 @@
 use crate::{
-    CalcError, Number, SignedMode, Word, WordConfig, error::first_error, flags::FlagUpdate,
+    CalcError, Number, OnesZeroMode, SignedMode, Word, WordConfig, error::first_error,
+    flags::FlagUpdate,
 };
 
 #[derive(Clone, Copy)]
@@ -121,6 +122,11 @@ fn integer_binary(
                 (raw, None, None)
             }
         }
+    };
+    let raw = if ones && config.ones_zero_mode == OnesZeroMode::Canonical && (raw & mask) == mask {
+        0
+    } else {
+        raw
     };
     Ok(integer_result(raw, carry, range, config))
 }

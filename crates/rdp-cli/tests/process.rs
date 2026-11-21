@@ -135,7 +135,10 @@ fn oneszero_batch_arithmetic_and_raw_transfers() {
 
 #[test]
 fn oneszero_repl_persists_and_help_lists_both_modes() {
-    let result = run(&[], b"wsize 8 signed ones oneszero raw\n01 FE +\noneszero canonical\n01 FE +\nhelp\n");
+    let result = run(
+        &[],
+        b"wsize 8 signed ones oneszero raw\n01 FE +\noneszero canonical\n01 FE +\nhelp\n",
+    );
     assert_eq!(result.status.code(), Some(0));
     assert!(result.stderr.is_empty());
     let output = String::from_utf8(result.stdout).unwrap();

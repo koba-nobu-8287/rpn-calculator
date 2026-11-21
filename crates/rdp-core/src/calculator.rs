@@ -150,6 +150,7 @@ fn metadata(command: Command, numeric_mode: NumericMode) -> CommandMetadata {
         SetRadix(_)
         | SetWordSize(_)
         | SetSignedMode(_)
+        | SetOnesZeroMode(_)
         | SetNumericMode(_)
         | SetFlag { .. }
         | ClearRegisters => (LiftEffect::Neutral, LastXEffect::Keep),
@@ -200,6 +201,7 @@ fn apply_command(state: &mut CalculatorState, command: Command) -> Result<(), Ca
             signed_mode,
             ..config
         })?,
+        SetOnesZeroMode(mode) => state.word_config.ones_zero_mode = mode,
         SetNumericMode(mode) => state.convert_mode(mode)?,
         Add | Subtract | Multiply | Divide | Remainder => {
             let op = match command {

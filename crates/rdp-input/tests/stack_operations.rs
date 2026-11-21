@@ -114,6 +114,7 @@ impl State {
         assert_eq!(
             core.word_config,
             WordConfig {
+                ones_zero_mode: rdp_core::OnesZeroMode::Canonical,
                 size: WordSize::new(16).unwrap(),
                 signed_mode: SignedMode::TwosComplement
             }
