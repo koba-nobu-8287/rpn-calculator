@@ -1,6 +1,6 @@
 # 04 算術評価
 
-版：D-1.0 / 2026-11-14（日本時間）。既存の確定・暫定契約を分けた実装用仕様。
+版：D-1.0 / 2026-11-14（日本時間）。整数・Floatの演算仕様。
 
 ## 1. 対象・依存・根拠
 
@@ -46,7 +46,7 @@ W=1～64、M=2^W−1、a=Y raw、b=X raw、y/xは形式に従う数学値。Unsi
 
 DIV/RMDは数学値0の除数を拒否し、Onesの負0もDivisionByZero。商は0方向切捨て、非0余りの符号はY。Twos最小値/−1もi128で安全に計算し、DIVは元の最小値rawとG=Set、Carry=Clearを返す。RMDのC/Gは結果0でも保持する。
 
-CHSはTwosでmod 2^Wの否定。Twos最小値は同じraw、G=Set。Unsignedは非0をmod 2^Wで否定しG=Set、0はraw0としG=Clearを暫定採用する。Unsigned CHS(0)のHP条件はTBD-007に残す。ABSはUnsignedなら値保持/G=Clear、Twos最小値ならraw保持/G=Set。
+CHSはTwosでmod 2^Wの否定。Twos最小値は同じraw、G=Set。Unsignedは非0をmod 2^Wで否定しG=Set、0はraw0としG=Clearとする。CHSのCarryは全符号形式で保持する（TBD-007）。ABSはUnsignedなら値保持/G=Clear、Twos最小値ならraw保持/G=Set。
 
 SQRTは浮動小数点へ変換せず整数平方根を求める。負の数学値はDomainError。積を使う場合はu128、または除算比較で安全に判定し、u64最大値で4294967295を得る。
 
@@ -68,7 +68,7 @@ SQRTは浮動小数点へ変換せず整数平方根を求める。負の数学�
 
 有限f64の四則、Remainder、CHS、ABS、SQRTを受理。RemainderはRust `%`相当の切捨て商の余りという独自拡張。±0除算はDivisionByZero、負sqrtはDomainError、非有限入力/結果はFloatingPointOutOfRange。subnormalとunderflowによる有限0を受理する。
 
-通常演算の精度・範囲はf64を基準とする（TBD-016）。f64の丸めを許し、厳密変換の往復一致を要求しない。F4/F5ともKeep（TBD-007の独自暫定）。HPのFloat四則F5更新へ自動的に合わせない。CHSは符号反転で±0も反転し、ABSは負0を正0へ。LAST Xの保存例外は07で扱う。
+通常演算の精度・範囲はf64を基準とする（TBD-016）。f64の丸めを許し、厳密変換の往復一致を要求しない。F4/F5ともKeep（TBD-007）。HPのFloat四則F5更新へ自動的に合わせない。CHSは符号反転で±0も反転し、ABSは負0を正0へ。LAST Xの保存例外は07で扱う。
 
 ## 6. 受入・実装ゲート
 

@@ -1,10 +1,10 @@
 # rdp-calc スタック・入力 単体テスト仕様
 
-2026-11-21 製品仕様（TBD-021 / DD-049）：Float編集でBS後に仮数の符号だけが残る場合、bufferを `0`、Xを `+0.0` とし、Editing / MantissaのままLiftを保持する。次の数字は追記する。IA-G012（旧SI-H003）を製品受入試験に含める。HP実機との照合はTBD-017で継続する。
+製品仕様（TBD-017/021、DD-049）：Float編集でBS後に仮数の符号だけが残る場合、bufferを `0`、Xを `+0.0` とし、Editing / MantissaのままLiftを保持する。次の数字は追記する。IA-G012（旧SI-H003）を製品受入試験に含める。
 
 版：SI-1.1 / 2026-10-31 / 基準develop：`eecb806`（旧SI-1.0のfixtureを継承）
 
-対応：[詳細設計](rdp-calc-stack-input-detailed-design.md)、[詳細設計v0.6](rdp-calc-detailed-design.md)。本書は実行結果ではなく、実装時のfixture仕様。現リポジトリのRustはHello worldのみで既存の実行可能なテストはない。既存TEST番号はv0.5の試験仕様を指す。
+対応：[詳細設計](rdp-calc-stack-input-detailed-design.md)、[詳細設計v0.6](rdp-calc-detailed-design.md)。本書は実行結果ではなく、実装時のfixture仕様。SI-T001～076はrdp-inputの結合試験で個別に実行できる。既存TEST番号はv0.5の試験仕様を指す。
 
 ## 1. 共通fixtureと表の読み方
 
@@ -58,12 +58,12 @@
 | SI-T028 Float連続CHS | [5,2,3,4]/9 | Float、E_E("5") | CHS,CHS | [5,2,3,4]/9 | E_E("5") | K | CE p.58、V5導出 | P0 |
 | SI-T029 Float Idle CHS | [5,2,3,4]/9 | Float、I_D | CHS | [-5,2,3,4]/9 | I_E | K | V5-H/CE p.100導出 | P0 |
 | SI-T030 Float負0 | [0,2,3,4]/9 | Float、E_D("0") | CHS | [-0.0,2,3,4]/9 | E_D("-0") | K | V5 f64編集、HP未確認 | P1 |
-| SI-T031 点から開始 | [8,2,3,4]/9 | Float、I_E | 点,digit("5") | [0.5,8,2,3]/9 | E_E("0.5") | K | V5暫定、017 | P1 |
+| SI-T031 点から開始 | [8,2,3,4]/9 | Float、I_E | 点,digit("5") | [0.5,8,2,3]/9 | E_E("0.5") | K | TBD-017 | P1 |
 | SI-T032 重複点 | [1.2,2,3,4]/9 | Float、E_D("1.2") | 点 | same/9 | E_D("1.2"),Err | K | V5文法、InputError::InvalidNumber（CP-03確定） | P1 |
 | SI-T033 Integer点 | [1,2,3,4]/9 | E_D("1") | 点 | same/9 | E_D("1"),NumericModeMismatch | K | V5 | P1 |
 | SI-T034 指数と符号 | [1,2,3,4]/9 | Float、E_D("1") | EEX,digit("2"),CHS | [0.01,2,3,4]/9 | E_D("1e-2")/Exp | K | CE p.58、V5、値はf64参照のto_bits | P1 |
-| SI-T035 指数のBS | [0.01,2,3,4]/9 | Float、E_E("1e-2")/Exp | BS,BS,BS | [1,2,3,4]/9 | E_E("1")/Mantissa | K | V5文字削除導出、017未確認 | P1 |
-| SI-T036 最終桁BS | [1,2,3,4]/9 | E_E("1") | BS,digit("2") | [2,2,3,4]/9 | E_E("02") | K | V5暫定。0をバッファに残す | P1 |
+| SI-T035 指数のBS | [0.01,2,3,4]/9 | Float、E_E("1e-2")/Exp | BS,BS,BS | [1,2,3,4]/9 | E_E("1")/Mantissa | K | TBD-017（実機は未確認） | P1 |
+| SI-T036 最終桁BS | [1,2,3,4]/9 | E_E("1") | BS,digit("2") | [2,2,3,4]/9 | E_E("02") | K | TBD-017。0をバッファに残す | P1 |
 | SI-T037 Idle BS | [5,2,3,4]/9 | I_E | BS | [0,2,3,4]/9 | I_D | K | H99、CE p.17 | P0 |
 | SI-T038 Idle EEX | [5,2,3,4]/9 | Float、I_E | EEX | same/9 | I_E,IncompleteEntry | K | V5 | P1 |
 | SI-T039 不完全ENTER | [1,2,3,4]/9 | Float、E_E("1e")/Exp | ENTER | same/9 | E_E("1e")/Exp,IncompleteEntry | K | V5、HP細部未確認 | P0 |
@@ -85,7 +85,7 @@
 | SI-T050 W1初回幅外 | [1,0,0,0]/0 | W1、Unsigned、HEX、I_E | digit("2") | same/0 | I_E,IntegerOutOfRange | K | **V5現契約のみ**、HPは差ありCP-01 | P1 |
 | SI-T051 256文字 | [0,2,3,4]/9 | E_D(0を255字) | digit("0") | [0,2,3,4]/9 | E_D(0を256字) | K | V5上限 | P1 |
 | SI-T052 257文字拒否 | [0,2,3,4]/9 | E_E(0を256字) | digit("0") | same/9 | buffer256字、InputTooLong | K | V5上限 | P1 |
-| SI-T053 幅縮小／拡大 | [0x1234,0xFF,3,4]/0x1234 | HEX、E_E("1234"),R0=0x5678 | WS8,WS16 | [0x34,0xFF,3,4]/0x34 | I_E,W16,R0=0x78 | K | V5直接API暫定、H32のスタックのみ一致 | P1 |
+| SI-T053 幅縮小／拡大 | [0x1234,0xFF,3,4]/0x1234 | HEX、E_E("1234"),R0=0x5678 | WS8,WS16 | [0x34,0xFF,3,4]/0x34 | I_E,W16,R0=0x78 | K | TBD-004、H32のスタックのみ一致 | P1 |
 | SI-T054 符号形式変更 | [0xFF,2,3,4]/9 | W8、HEX、E_D("FF") | SetSignedMode(Unsigned) | [0xFF,2,3,4]/9 | I_D、Unsigned、X数学値255 | K | V5-H p.35/100 | P1 |
 | SI-T055 Integer→Float | [5,2,3,4]/9 | HEX、E_D("5"),R0=7 | MODE Float | [5.0,2.0,3.0,4.0]/9.0 | Float、DEC、I_D、R0=7.0 | K | V5独自厳密変換 | P1 |
 | SI-T056 変換全体拒否 | [5,2,3,4]/9 | W64 Unsigned、E_E("5"),R0=9007199254740993 | MODE Float | same/9 | Integer、E_E("5"),Calculation(IntegerOutOfRange) | K | V5厳密変換、非表現可能なRi | P0 |
@@ -115,7 +115,7 @@ SI-T056は有限f64への精度欠落、SI-T057は非整数の変換拒否で、
 | SI-T073 Float指数編集 | [1e306,2,3,4]/9 | Float、E_D("1e306")/Exp | CHS,BS | [1e-30,2,3,4]/9 | E_D("1e-30")/Exp | K | V5文字編集・有限性、HP未確認 | P1 |
 | SI-T074 不正文字集合 | [1,2,3,4]/9 | I_E | 各々InputDigit('-'),InputDigit('１'),InputDigit('G') | same/9 | I_E,各InvalidDigit | K | V5 ASCII入力 | P1 |
 | SI-T075 Float幅変更拒否 | [1,2,3,4]/9 | Float、E_D("1") | 各々WS8、SetSignedMode(Unsigned) | same/9 | E_D("1"),NumericModeMismatch | K | V5、実機設定とは差あり | P1 |
-| SI-T076 整数CHS最小 | [0x80,2,3,4]/9 | W8 Twos、HEX、E_D("80") | CHS | [0x80,2,3,4]/0x80 | I_E | C1G1 | V5 §7、TBD-007の既存暫定分類 | P1 |
+| SI-T076 整数CHS最小 | [0x80,2,3,4]/9 | W8 Twos、HEX、E_D("80") | CHS | [0x80,2,3,4]/0x80 | I_E | C1G1 | V5 §7、TBD-007のCHS規則（C保持/G更新） | P1 |
 
 SI-T073は符号切替後に指数を編集しても再Liftしない試験であり、エラーを期待しない。HPの範囲制限を模倣する試験ではない。
 
@@ -128,11 +128,11 @@ SI-T073は符号切替後に指数を編集しても再Liftしない試験であ
 | SI-H003 負数最終桁削除 | Float、[-1,2,3,4]/9、E_E("-1")、flags標準 | BS | [+0,2,3,4]/9、E_E("0")、flags K | 製品確定。実機は未確認 | DD-049、017 | P1 |
 | SI-H004 複数原因（移管済み） | Float、E_D("1e") | BASE HEX | CP-03でCalculation(NumericModeMismatch)に確定 | 通常試験IA-G004へ移管、ここでは重複実行しない | TBD-022 Resolved | P0 |
 | SI-H005 HP FLOAT | W64 HEX、[0,0x25E47,3,4]/9、I_D | 実機FLOAT | X=155207.0、Y/Z/T/L=0、W56、Lift Eは過去確認 | 製品対象外の実機参照例。SetNumericModeの受入には厳密な全領域変換を用いる | V5 TEST-072、006 | P1 |
-| SI-H006 HP WSIZE領域 | W16、R0=0x1234,R1=0x5678、スタック任意の合法値 | HP WSIZE32、16 | R0がW32で0x56781234、復元幅で元R0/R1 | 直接SetWordSizeには要求しない。全スタック/Lのfixtureは新Command設計時に追加 | V5 TEST-071、004/014 | P1 |
+| SI-H006 HP WSIZE領域 | W16、R0=0x1234,R1=0x5678、スタック任意の合法値 | HP WSIZE32、16 | R0がW32で0x56781234、復元幅で元R0/R1 | HP式WSIZEの参考例。製品の幅変更はSI-T053で確認 | V5 TEST-071、004/014 | P1 |
 | SI-H007 エラー解除キー | 除算失敗画面、コアはSI-T061の状態 | 実機の数字2 | 表示解除は過去確認 | 数字2を計算にも渡すか、解除だけで消費するか未確認 | TBD-012 | P2 |
 | SI-H008 実機最大桁 | W1/3/8/64、全基数、Float仮数/指数 | 上限まで入力後もう1桁 | V5は256文字＋範囲拒否 | 実機の無視／拒否／丸め／表示窓と内部値、Lift、flagsを実測・資料確認 | TBD-013/017/018 | P1 |
 
-保留ケースは期待値が未確定なのでRustの普通の`assert_eq!`ケースへ転記しない。課題管理ID付きの未実装fixtureまたはignore理由を残し、実行済み互換ケースの集計から除外する。
+SI-H003/004の製品期待値はIA-G012/004に移管済み。ほかのSI-HはHP実機の参考例であり、製品の受入件数から除く。
 
 ## 7. 網羅・既存仕様との重複整理
 
@@ -146,8 +146,8 @@ SI-T073は符号切替後に指数を編集しても再Liftしない試験であ
 | TEST-047/048 | SI-T061～065、070 | 単一Commandとexecute_allのロールバック範囲を比較 |
 | TEST-061/062 | SI-T030、055～057、064、071～073 | 初期化、有限値、符号0、snapshotを補足 |
 | TEST-068/069/070/073 | SI-T069/037/027/011 | 既存確定例を全状態で再利用 |
-| TEST-065/071/072 | SI-H001～008 | 未確認を埋めない。HP用APIの将来受入枠 |
-| 新規追加が必要 | SI-T002、009、015、019、026、028、035、036、040、041/042対比、043、050、051/052、056、060、062、071、073～076、SI-H001～004 | 繰返し・履歴・複合操作・全領域原子性と仕様穴の検出 |
+| TEST-065/071/072 | SI-H001～008 | 製品対象外の実機参照例 |
+| 旧版から追加した試験観点 | SI-T002、009、015、019、026、028、035、036、040、041/042対比、043、050、051/052、056、060、062、071、073～076、SI-H001～004 | 繰返し・履歴・複合操作・全領域原子性と仕様穴の検出 |
 
 上表は範囲対応であり、既存試験の全入力例を読み替えるものではない。各新規実装テストに`SI-Txxx`を唯一の主IDとして付け、旧IDは説明コメントに残す。
 
@@ -175,11 +175,11 @@ struct TransitionCase {
 // Number::Floatはto_bits()で比較、IntegerはWord::bits()で比較。
 ```
 
-製品実装後、private状態試験は各所有モジュール内、Core公開API試験は`crates/rdp-core/tests/`、編集・協調原子性の公開API試験は`crates/rdp-input/tests/`へ分離し、それぞれ`cargo test -p rdp-core`、`cargo test -p rdp-input`で実行する。現Cargo.tomlには当該crateがないため、今回これらのコマンドが通ると主張しない。CLI側はキー列と完成数値Push列を分け、各所有層のSnapshotで検証する。移設・重複・保留は第9節、実装前提と統合検証の順序は[詳細設計](rdp-calc-detailed-design.md) 第12章に従う。
+製品実装後、private状態試験は各所有モジュール内、Core公開API試験は`crates/rdp-core/tests/`、編集・協調原子性の公開API試験は`crates/rdp-input/tests/`へ分離し、それぞれ`cargo test -p rdp-core`、`cargo test -p rdp-input`で実行する。CLI側はキー列と完成数値Push列を分け、各所有層のSnapshotで検証する。移設・重複・保留は第9節、実装前提と統合検証の順序は[詳細設計](rdp-calc-detailed-design.md) 第12章に従う。
 
 ## 9. IA-1.0移行・追加テスト（現行正本）
 
-製品テストは未実装。以下は実装時の必須仕様であり、テスト実行済みとはしない。旧SI-T001～076のID・数値期待値を維持し、編集fixtureはHpInputSessionへ移設。旧InputDigit/点/EEX/BSはKey、残りはInputEvent::Commandへ変換する。Core fixtureにEntryPhaseを追加しない。InputError5種はSessionError::Input、それ以外はCalculationで比較。SI-T032はInput(InvalidNumber)、SI-T056はCalculation(IntegerOutOfRange)に確定。SI-T024の拒否はCoreではなくセッション。SI-T071はInputSnapshotを変更し独立性を検査する。
+以下は実装時の必須仕様であり、テスト実行済みとはしない。旧SI-T001～076のID・数値期待値を維持し、編集fixtureはHpInputSessionへ移設。旧InputDigit/点/EEX/BSはKey、残りはInputEvent::Commandへ変換する。Core fixtureにEntryPhaseを追加しない。InputError5種はSessionError::Input、それ以外はCalculationで比較。SI-T032はInput(InvalidNumber)、SI-T056はCalculation(IntegerOutOfRange)に確定。SI-T024の拒否はCoreではなくセッション。SI-T071はInputSnapshotを変更し独立性を検査する。
 
 | 旧ID群 | 実行層・対応 |
 |---|---|
@@ -188,7 +188,7 @@ struct TransitionCase {
 | TEST-020～038 | キー操作はrdp-inputへ。TEST-032のCLI 0xGだけIA-L012へ移す |
 | TEST-043/053/054/056/060 | CLI parse/表示/終了コードはIA-L群と対応、Core formatはそのまま |
 | TEST-029、SI-T024 | Editing Push拒否をセッションへ配置変更、IA-C002と対比 |
-| SI-H003 | 製品試験IA-G012へ移管。実機照合は017 |
+| SI-H003 | 製品試験IA-G012へ移管。製品の符号・削除規則は017 |
 | SI-H004 | IA-G004へ移管して確定試験化、旧IDは追跡タグのみ |
 
 追加ケースはIA-L（CLI）、IA-C（Core）、IA-G（共通キー/セッション）。全失敗は全snapshotと内部part、全成功は4段/L/flags/設定/記憶/Liftを比較する。Floatはto_bits、Ones負0はraw比較。明示しないフィールドは保持。L群のparse単体はCoreを呼ばず、副作用がないことをspyで確認する。
@@ -268,7 +268,7 @@ InvalidWordSize/InvalidRegisterCount/AllocationFailedは生成・確保経路、
 | IA-G011 | HP Editing中にCLI pending入力への切替要求 | InputInProgress、Core・HP編集・pending不変、二重編集禁止 |
 | IA-G012 | Float Editing("-1")でBS | Editing("0")、X=+0.0、Mantissa、Lift保持。次の2でbuffer="02" |
 
-IA-G003の表記「Input経由」はセッション経由という意味で、エラーvariantはSessionError::Calculation(IntegerOutOfRange)。未確定IA-G012を通常成功件数へ算入しない。旧SI-H001/002/005～008もHP保留のまま。
+IA-G003の幅外エラーはSessionError::Calculation(IntegerOutOfRange)。IA-G012は製品受入に含める。SI-H001/002/005～008は実機比較用。
 
 ### 設定変更の製品受入（TBD-001/006/008）
 

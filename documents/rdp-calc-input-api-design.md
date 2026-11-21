@@ -1,8 +1,8 @@
 # rdp-calc 入力API詳細設計
 
-2026-11-21 製品仕様（TBD-021 / DD-049）：Float編集でBS後に仮数の符号だけが残る場合、bufferを `0`、Xを `+0.0` とし、Editing / MantissaのままLiftを保持する。次の数字は追記する。IA-G012（旧SI-H003）を製品受入試験に含める。HP実機との照合はTBD-017で継続する。
+製品仕様（TBD-017/021、DD-049）：Float編集でBS後に仮数の符号だけが残る場合、bufferを `0`、Xを `+0.0` とし、Editing / MantissaのままLiftを保持する。次の数字は追記する。IA-G012（旧SI-H003）を製品受入試験に含める。
 
-IA-1.0 / 2026-10-31（日本時間） / 設計確定・未実装
+IA-1.0 / 2026-10-31（日本時間） / 入力API仕様
 
 2026-11-14追記：実装単位の仕様は[details](details/README.md)へ具体化した。本書の入力所有・公開API・CP-01～03を維持し、照合・補足・保留境界は[検証記録](details/review-and-validation.md)を参照する。
 
@@ -21,7 +21,7 @@ IA-1.0 / 2026-10-31（日本時間） / 設計確定・未実装
 | 変更規模 | 小 | 中～大 | 中、編集移設と数値更新API |
 | 原子性 | state clone | UIごとに保証 | Core＋編集の候補コピー |
 
-Cを採用する。StackLiftをCoreの計算状態として残し、編集を一か所に集約できるため。trait分割、イベントバスは不要。`rdp-input`を将来workspaceへ追加し、CLIパーサーは`rdp-cli`内に置く。Cargoの変更は今回行わない。
+Cを採用する。StackLiftをCoreの計算状態として残し、編集を一か所に集約できるため。trait分割、イベントバスは不要。`rdp-input` が共通の編集状態を所有し、CLIパーサーは `rdp-cli` に置く。
 
 ```mermaid
 flowchart TD
@@ -55,7 +55,7 @@ W8のHEX期待値：0x12→12、0x123→23、0x1FF→FF、0x100→00。DECの-12
 
 明示`-0`はOnesでM、Twos/Unsignedで0、Floatで-0.0。単独`-`は常に正0。Onesの無符号表記0xFFも負0として解釈する。入力はC/Gを変更しない。
 
-CoreのPushは幅外・非有限・mode違いを拒否し、自動切り捨てしない。Word::from_bitsの明示マスクは維持するが、それで失われた上位bitをCoreが検出することはできない。幅16で作ったraw123をW8へPushすればIntegerOutOfRange。HPキーは現行の厳密範囲拒否を暫定維持しCP-01を適用しない（TBD-013）。
+CoreのPushは幅外・非有限・mode違いを拒否し、自動切り捨てしない。Word::from_bitsの明示マスクは維持するが、それで失われた上位bitをCoreが検出することはできない。幅16で作ったraw123をW8へPushすればIntegerOutOfRange。HPキーは現行の厳密範囲拒否を適用し、CP-01を適用しない（TBD-013）。
 
 ## 3. API・所有・内部処理
 
@@ -252,7 +252,7 @@ HpInputSession::applyはCoreとInputStateを一緒にcloneし成功時のみ全�
 | 6 | X0,Y5でDivide | DivisionByZero、全状態不変 |
 | 7 | IntegerでPush(Float(NaN)) | 非有限とmode不一致→FloatingPointOutOfRange、不変 |
 | 8 | GUI digit1,digit2 | Start→ReplaceX、[12,5,2,3],L9,E、Editing(12)、liftは一度 |
-| 9 | Float GUI 12→CHS→BS | [-1,5,2,3],L9,E、Editing(-1)。次のBSはTBD-021で期待値未確定 |
+| 9 | Float GUI 12→CHS→BS | [-1,5,2,3],L9,E、Editing(-1)。次のBSはEditing(0)、X=+0.0、Lift保持 |
 | 10 | pending=0＋Divide | 候補Pushと除算を取消、実Coreは[5,2,3,4],L9,E、pending=0保持 |
 
 ```mermaid
@@ -316,7 +316,7 @@ sequenceDiagram
 
 CLI互換変更は範囲超過/Unsigned負数受理、単独-の0化（減算sub）、Literal終了コード。API変更は編集型・キー命令の移設、数値更新API、snapshot分離。算術・HPスタック効果は維持する。CoreはEditingを知らないためSI-18のPush拒否はセッションの契約となる。
 
-TBD-013のCLI部分はResolved、HP部分はPartial。TBD-021の製品動作は確定。HP編集境界は017で扱う。TBD-022はResolved。flags・記憶領域・表示解除の残件は維持する。マニュアル照合記録は既存調査として継承し今回新たな実機確認を主張しない。
+CLI完成整数とキー逐次入力の境界はTBD-013、Float編集は017/021、エラー後の次入力は012、エラー順位は022の確定規則に従う。
 
 レビュー重点は1補数ビット列化、単独-の移行、ValueUpdateの公開範囲、候補コピーコスト、順位の依存ガード。CP-01～03は製品設計として確定し、これらのレビュー項目を未確定仕様と混同しない。
 
