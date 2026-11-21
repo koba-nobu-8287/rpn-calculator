@@ -23,6 +23,95 @@ fn raw(calc: &Calculator) -> u64 {
     calc.snapshot().stack[0].as_integer().unwrap().bits()
 }
 
+#[test]
+fn test_067_float_rounding_subnormal_and_overflow_preserve_flags() {
+    use Command::*;
+    for carry in [false, true] {
+        for overflow in [false, true] {
+            let mut c = Calculator::new();
+            c.execute_all([
+                SetNumericMode(NumericMode::FloatingPoint),
+                SetFlag {
+                    index: 4,
+                    value: carry,
+                },
+                SetFlag {
+                    index: 5,
+                    value: overflow,
+                },
+            ])
+            .unwrap();
+            let flags = c.snapshot().flags;
+            for (y, x, op, expected) in [
+                (0.1, 0.2, Add, 0.30000000000000004_f64),
+                (f64::MIN_POSITIVE, 2.0, Divide, f64::from_bits(1_u64 << 51)),
+            ] {
+                c.execute_all([Push(Number::Float(y)), Push(Number::Float(x)), op])
+                    .unwrap();
+                assert_eq!(
+                    c.snapshot().stack[0].as_float().unwrap().to_bits(),
+                    expected.to_bits()
+                );
+                assert_eq!(c.snapshot().flags, flags);
+            }
+            c.execute_all([Push(Number::Float(f64::MAX)), Push(Number::Float(2.0))])
+                .unwrap();
+            expect_error(&mut c, Multiply, CalcError::FloatingPointOutOfRange);
+        }
+    }
+}
+
+#[test]
+fn test_041_sign_transitions_preserve_raw_state_at_both_lift_settings() {
+    use Command::*;
+    use SignedMode::*;
+    let modes = [Unsigned, OnesComplement, TwosComplement];
+    for source in modes {
+        for target in modes.into_iter().filter(|&target| target != source) {
+            for lift in [StackLift::Enabled, StackLift::Disabled] {
+                for (carry, overflow) in
+                    [(false, false), (false, true), (true, false), (true, true)]
+                {
+                    let mut c = Calculator::with_config(config(8, source)).unwrap();
+                    c.execute_all([
+                        Push(int(255, 8)),
+                        Absolute,
+                        Push(int(255, 8)),
+                        Store(0),
+                        SetFlag {
+                            index: 4,
+                            value: carry,
+                        },
+                        SetFlag {
+                            index: 5,
+                            value: overflow,
+                        },
+                    ])
+                    .unwrap();
+                    if lift == StackLift::Disabled {
+                        c.execute(Enter).unwrap();
+                    }
+                    let mut expected = c.snapshot();
+                    expected.word_config.signed_mode = target;
+                    c.execute(SetSignedMode(target)).unwrap();
+                    assert_eq!(c.snapshot(), expected);
+                    let x = c.snapshot().stack[0].as_integer().unwrap();
+                    let value = match target {
+                        Unsigned => 255,
+                        OnesComplement => 0,
+                        TwosComplement => -1,
+                    };
+                    assert_eq!(x.to_signed(&expected.word_config), value);
+                    assert_eq!(
+                        x.is_negative_zero(&expected.word_config),
+                        target == OnesComplement
+                    );
+                }
+            }
+        }
+    }
+}
+
 fn expect_error(calc: &mut Calculator, command: Command, error: CalcError) {
     let before = calc.snapshot();
     assert_eq!(calc.execute(command), Err(error), "{command:?}");

@@ -70,6 +70,23 @@ fn repl_editing_and_eof() {
     assert!(out.contains("1e"));
     assert!(out.trim_end().ends_with('0'));
 }
+
+#[test]
+fn test_056_stack_query_shows_edit_buffer_on_x_only() {
+    let r = run(
+        &["--float"],
+        b"keys \"1 eex\"\nstack\nkeys \"2\"\nstack\nenter\nstack\nexit\n",
+    );
+    assert_eq!(r.status.code(), Some(0));
+    assert!(r.stderr.is_empty());
+    let text = String::from_utf8(r.stdout).unwrap();
+    let x_rows: Vec<_> = text.lines().filter(|line| line.starts_with("X:")).collect();
+    assert_eq!(x_rows, ["X: 1 [1e]", "X: 100 [1e2]", "X: 100"]);
+    assert!(!text.lines().any(|line| (line.starts_with("T:")
+        || line.starts_with("Z:")
+        || line.starts_with("Y:"))
+        && line.contains('[')));
+}
 #[test]
 fn oversize_line_drains_to_newline() {
     let mut input = vec![b' '; 65537];

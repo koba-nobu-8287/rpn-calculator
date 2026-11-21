@@ -19,6 +19,18 @@ impl Default for Calculator {
     }
 }
 
+/// Obtains a consistent snapshot for adapters that perform their own state transitions.
+impl TryFrom<&Calculator> for CalculatorSnapshot {
+    type Error = CalcError;
+
+    fn try_from(calculator: &Calculator) -> Result<Self, Self::Error> {
+        calculator
+            .state
+            .validate(calculator.initial_config.register_count)?;
+        Ok(calculator.snapshot())
+    }
+}
+
 impl Calculator {
     pub fn new() -> Self {
         Self::with_config(CalculatorConfig::default()).expect("default calculator configuration")

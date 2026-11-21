@@ -87,3 +87,40 @@ impl Word {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::OnesZeroMode;
+
+    #[test]
+    fn test_008_exact_integer_bounds_for_every_width_and_sign_mode() {
+        for width in 1..=64 {
+            let sign = 1_i128 << (width - 1);
+            for (signed_mode, min, max) in [
+                (SignedMode::Unsigned, 0, 2 * sign - 1),
+                (SignedMode::TwosComplement, -sign, sign - 1),
+                (SignedMode::OnesComplement, 1 - sign, sign - 1),
+            ] {
+                let config = WordConfig {
+                    size: WordSize::new(width).unwrap(),
+                    signed_mode,
+                    ones_zero_mode: OnesZeroMode::Canonical,
+                };
+                for value in [min, 0, max] {
+                    let word = Word::from_integer(value, &config).unwrap();
+                    assert_eq!(word.to_signed(&config), value);
+                    if value == 0 {
+                        assert_eq!(word.bits(), 0);
+                    }
+                }
+                for value in [min - 1, max + 1] {
+                    assert_eq!(
+                        Word::from_integer(value, &config),
+                        Err(CalcError::IntegerOutOfRange)
+                    );
+                }
+            }
+        }
+    }
+}

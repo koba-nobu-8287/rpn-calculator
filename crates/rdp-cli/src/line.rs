@@ -11,7 +11,7 @@ pub enum LineError {
     Calculation(CalcError),
     Io(io::Error),
 }
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CliError {
     UnknownCommand(String),
     MissingArgument(String),
@@ -71,9 +71,8 @@ impl CliSession {
     ) -> Result<RunControl, LineError> {
         self.execute_line(line, output, true, true)
     }
-    fn print_x(&self, output: &mut impl Write, editing: bool) -> Result<(), LineError> {
-        let snap = self.snapshot();
-        let s = snap.calculator;
+    fn print_x(snap: &InputSnapshot, output: &mut impl Write) -> Result<(), LineError> {
+        let s = &snap.calculator;
         let x = format_number(
             s.stack[0],
             s.radix,
@@ -82,7 +81,7 @@ impl CliSession {
             &s.flags,
         )
         .map_err(LineError::Calculation)?;
-        if editing && let Some(buf) = snap.input_buffer {
+        if let Some(buf) = &snap.input_buffer {
             writeln!(output, "{x} [{buf}]")?;
         } else {
             writeln!(output, "{x}")?;
@@ -96,7 +95,7 @@ impl CliSession {
                 snap.calculator.radix,
             )))?;
         }
-        self.print_x(output, false)
+        Self::print_x(&self.snapshot(), output)
     }
     fn execute_line(
         &mut self,
@@ -136,16 +135,19 @@ impl CliSession {
                     writeln!(output, "{}", u8::from(self.hp.test_bit(index)?))?
                 }
                 Action::Stack => {
-                    let s = self.snapshot().calculator;
-                    for (label, value) in ["T", "Z", "Y", "X"]
+                    let snap = self.snapshot();
+                    let s = &snap.calculator;
+                    for (label, value) in ["T", "Z", "Y"]
                         .into_iter()
-                        .zip(s.stack.into_iter().rev())
+                        .zip(s.stack[1..].iter().rev().copied())
                     {
                         let formatted =
                             format_number(value, s.radix, s.numeric_mode, &s.word_config, &s.flags)
                                 .map_err(LineError::Calculation)?;
                         writeln!(output, "{label}: {formatted}")?;
                     }
+                    write!(output, "X: ")?;
+                    Self::print_x(&snap, output)?;
                 }
                 Action::Status => {
                     let snapshot = self.snapshot();
@@ -180,7 +182,7 @@ impl CliSession {
             }
         }
         if show_result {
-            self.print_x(output, true)?;
+            Self::print_x(&self.snapshot(), output)?;
         }
         Ok(RunControl::Continue)
     }
@@ -219,19 +221,36 @@ impl LineError {
         }
     }
 }
+impl std::fmt::Display for CliError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CliError::InvalidArgument(s) => write!(f, "invalid argument: {s}"),
+            CliError::MissingArgument(s) => write!(f, "missing argument for {s}"),
+            CliError::UnknownCommand(s) => write!(f, "unknown command: {s}"),
+            CliError::LineTooLong => f.write_str("line exceeds 64 KiB"),
+        }
+    }
+}
+impl std::error::Error for CliError {}
 impl std::fmt::Display for LineError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Syntax(e) => match e {
-                CliError::InvalidArgument(s) => write!(f, "invalid argument: {s}"),
-                CliError::MissingArgument(s) => write!(f, "missing argument for {s}"),
-                CliError::UnknownCommand(s) => write!(f, "unknown command: {s}"),
-                CliError::LineTooLong => f.write_str("line exceeds 64 KiB"),
-            },
+            Self::Syntax(e) => e.fmt(f),
             Self::Calculation(e) => write!(f, "calculation: {e}"),
-            Self::Input(e) => write!(f, "key input: {e:?}"),
-            Self::Literal(e) => write!(f, "numeric literal: {e:?}"),
+            Self::Input(e) => write!(f, "key input: {e}"),
+            Self::Literal(e) => write!(f, "numeric literal: {e}"),
             Self::Io(e) => write!(f, "I/O: {e}"),
         }
+    }
+}
+impl std::error::Error for LineError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(match self {
+            Self::Syntax(e) => e,
+            Self::Literal(e) => e,
+            Self::Input(e) => e,
+            Self::Calculation(e) => e,
+            Self::Io(e) => e,
+        })
     }
 }
