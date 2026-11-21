@@ -1,6 +1,6 @@
 # 11 CLI構文・実行・入出力
 
-版：D-1.0 / 2026-11-14（日本時間）。コマンド識別と行実行は `rdp_cli::line::CliSession::run_line` で利用できる。引数解析、REPL、ワンショットの最終出力・終了コードは後続作業。
+版：D-1.0 / 2026-11-14（日本時間）。コマンド識別と行実行は `rdp_cli::line::CliSession::run_line` で利用できる。`cargo run --bin rdp-calc -- --base dec "5 3 +"` でワンショット（標準出力は `8` と改行）、式を省略するとREPLで起動する。プロセス試験は `crates/rdp-cli/tests/process.rs` に配置する。
 
 ## 1. 対象・根拠・依存
 

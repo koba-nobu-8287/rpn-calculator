@@ -179,7 +179,7 @@ fn literal_candidate(s: &str) -> bool {
                 .all(|b| b.is_ascii_digit() || matches!(b, b'.' | b'e' | b'E' | b'+' | b'-')))
 }
 pub(super) fn parse_line(mut rest: &str) -> Result<Vec<Action<'_>>, CliError> {
-    if rest.len() > 65536 {
+    if rest.len() > super::MAX_LINE_BYTES {
         return Err(CliError::LineTooLong);
     }
     let mut actions = Vec::new();

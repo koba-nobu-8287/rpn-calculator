@@ -6,3 +6,7 @@ edition = "2024"
 [dependencies]
 rdp-core = { path = "../rdp-core" }
 rdp-input = { path = "../rdp-input" }
+
+[[bin]]
+name = "rdp-calc"
+path = "src/main.rs"

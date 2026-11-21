@@ -1,11 +1,3 @@
-[package]
-name = "rpn-calculator"
-version = "0.1.0"
-edition = "2024"
-
-[dependencies]
-
 [workspace]
 members = ["crates/rdp-core", "crates/rdp-input", "crates/rdp-cli"]
-default-members = [".", "crates/rdp-core", "crates/rdp-input", "crates/rdp-cli"]
 resolver = "3"

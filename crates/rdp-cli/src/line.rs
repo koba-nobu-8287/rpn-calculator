@@ -2,6 +2,7 @@ use crate::{LiteralEntryError, LiteralError, enter_literal};
 use rdp_core::*;
 use rdp_input::*;
 use std::io::{self, Write};
+pub(crate) const MAX_LINE_BYTES: usize = 64 * 1024;
 #[derive(Debug)]
 pub enum LineError {
     Syntax(CliError),
@@ -61,6 +62,49 @@ impl CliSession {
         output: &mut impl Write,
         interactive: bool,
     ) -> Result<RunControl, LineError> {
+        self.execute_line(line, output, interactive, false)
+    }
+    pub(crate) fn repl_line(
+        &mut self,
+        line: &str,
+        output: &mut impl Write,
+    ) -> Result<RunControl, LineError> {
+        self.execute_line(line, output, true, true)
+    }
+    fn print_x(&self, output: &mut impl Write, editing: bool) -> Result<(), LineError> {
+        let snap = self.snapshot();
+        let s = snap.calculator;
+        let x = format_number(
+            s.stack[0],
+            s.radix,
+            s.numeric_mode,
+            &s.word_config,
+            &s.flags,
+        )
+        .map_err(LineError::Calculation)?;
+        if editing && let Some(buf) = snap.input_buffer {
+            writeln!(output, "{x} [{buf}]")?;
+        } else {
+            writeln!(output, "{x}")?;
+        }
+        Ok(())
+    }
+    pub(crate) fn finish_batch(&mut self, output: &mut impl Write) -> Result<(), LineError> {
+        let snap = self.snapshot();
+        if snap.entry_phase == EntryPhase::Editing {
+            self.hp.apply(InputEvent::Command(Command::SetRadix(
+                snap.calculator.radix,
+            )))?;
+        }
+        self.print_x(output, false)
+    }
+    fn execute_line(
+        &mut self,
+        line: &str,
+        output: &mut impl Write,
+        interactive: bool,
+        echo_x: bool,
+    ) -> Result<RunControl, LineError> {
         use parser::Action;
         let actions = parser::parse_line(line).map_err(LineError::Syntax)?;
         if !interactive && actions.iter().any(Action::interactive_only) {
@@ -68,6 +112,10 @@ impl CliSession {
                 "interactive command in batch".into(),
             )));
         }
+        let show_result = echo_x
+            && actions
+                .last()
+                .is_some_and(|action| !action.interactive_only());
         for action in actions {
             match action {
                 Action::Literal(token) => enter_literal(&mut self.hp, token)?,
@@ -131,6 +179,9 @@ impl CliSession {
                 )?,
             }
         }
+        if show_result {
+            self.print_x(output, true)?;
+        }
         Ok(RunControl::Continue)
     }
 }
@@ -158,3 +209,29 @@ impl From<io::Error> for LineError {
 mod parser;
 #[cfg(test)]
 mod tests;
+
+impl LineError {
+    pub fn exit_code(&self) -> u8 {
+        match self {
+            Self::Calculation(_) | Self::Input(_) => 1,
+            Self::Literal(_) | Self::Syntax(_) => 2,
+            Self::Io(_) => 3,
+        }
+    }
+}
+impl std::fmt::Display for LineError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Syntax(e) => match e {
+                CliError::InvalidArgument(s) => write!(f, "invalid argument: {s}"),
+                CliError::MissingArgument(s) => write!(f, "missing argument for {s}"),
+                CliError::UnknownCommand(s) => write!(f, "unknown command: {s}"),
+                CliError::LineTooLong => f.write_str("line exceeds 64 KiB"),
+            },
+            Self::Calculation(e) => write!(f, "calculation: {e}"),
+            Self::Input(e) => write!(f, "key input: {e:?}"),
+            Self::Literal(e) => write!(f, "numeric literal: {e:?}"),
+            Self::Io(e) => write!(f, "I/O: {e}"),
+        }
+    }
+}

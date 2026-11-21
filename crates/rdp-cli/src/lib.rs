@@ -23,3 +23,4 @@ pub fn enter_literal(session: &mut HpInputSession, text: &str) -> Result<(), Lit
         .map_err(LiteralEntryError::Session)
 }
 pub mod line;
+pub mod terminal;
