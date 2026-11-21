@@ -18,6 +18,10 @@ fn invalid_actual_state_precedes_command_validation() {
     calc.state.stack.set_x(Number::Float(3.0));
     let before = calc.snapshot();
     assert_eq!(
+        CalculatorSnapshot::try_from(&calc),
+        Err(CalcError::InvariantViolation)
+    );
+    assert_eq!(
         calc.execute(Command::SetFlag {
             index: 255,
             value: false

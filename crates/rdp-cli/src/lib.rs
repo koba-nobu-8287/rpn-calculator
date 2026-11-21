@@ -1,10 +1,26 @@
 mod literal;
 pub use literal::LiteralError;
 use rdp_input::{HpInputSession, SessionError};
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LiteralEntryError {
     Literal(LiteralError),
     Session(SessionError),
+}
+impl std::fmt::Display for LiteralEntryError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Literal(e) => write!(f, "numeric literal: {e}"),
+            Self::Session(e) => e.fmt(f),
+        }
+    }
+}
+impl std::error::Error for LiteralEntryError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(match self {
+            Self::Literal(e) => e,
+            Self::Session(e) => e,
+        })
+    }
 }
 
 /// Parses one complete numeric token under the current calculator settings and pushes its value.

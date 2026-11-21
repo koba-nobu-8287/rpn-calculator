@@ -1,4 +1,6 @@
 use rdp_core::*;
+#[cfg(test)]
+mod tests;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EntryPhase {
     Idle,
@@ -21,7 +23,7 @@ pub enum InputEvent {
     Key(Key),
     Command(Command),
 }
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InputError {
     InvalidDigit { digit: char, radix: Radix },
     InvalidNumber,
@@ -30,10 +32,33 @@ pub enum InputError {
     InputTooLong,
     InvariantViolation,
 }
-#[derive(Debug, Clone, PartialEq)]
+impl std::fmt::Display for InputError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
+impl std::error::Error for InputError {}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SessionError {
     Input(InputError),
     Calculation(CalcError),
+}
+impl std::fmt::Display for SessionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Input(e) => write!(f, "key input: {e}"),
+            Self::Calculation(e) => write!(f, "calculation: {e}"),
+        }
+    }
+}
+impl std::error::Error for SessionError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(match self {
+            Self::Input(e) => e,
+            Self::Calculation(e) => e,
+        })
+    }
 }
 #[derive(Debug, Clone, PartialEq)]
 pub struct InputSnapshot {
@@ -76,6 +101,9 @@ impl HpInputSession {
         self.buffer.clear();
     }
     pub fn test_bit(&self, index: u8) -> Result<bool, SessionError> {
+        if !self.buffer.is_empty() {
+            self.checked_state()?;
+        }
         let value = self.calculator.test_bit(index)?;
         if self.buffer.is_empty() {
             Ok(value)
@@ -84,13 +112,36 @@ impl HpInputSession {
         }
     }
     pub fn apply(&mut self, event: InputEvent) -> Result<(), SessionError> {
+        let config = self.checked_state()?;
         let mut candidate = self.clone();
-        candidate.apply_candidate(event)?;
+        candidate.apply_candidate(event, &config)?;
+        if !candidate.buffer.is_empty() {
+            candidate.checked_state()?;
+        }
         *self = candidate;
         Ok(())
     }
-    fn apply_candidate(&mut self, event: InputEvent) -> Result<(), SessionError> {
-        let config = self.calculator.snapshot();
+    fn checked_state(&self) -> Result<CalculatorSnapshot, SessionError> {
+        let config = CalculatorSnapshot::try_from(&self.calculator)?;
+        if !self.buffer.is_empty() {
+            let preview =
+                entry_preview(&self.buffer, &config).map_err(|_| InputError::InvariantViolation)?;
+            let x = config.stack[0];
+            let matches = match (preview, x) {
+                (Number::Float(a), Number::Float(b)) => a.to_bits() == b.to_bits(),
+                _ => preview == x,
+            };
+            if !matches {
+                return Err(InputError::InvariantViolation.into());
+            }
+        }
+        Ok(config)
+    }
+    fn apply_candidate(
+        &mut self,
+        event: InputEvent,
+        config: &CalculatorSnapshot,
+    ) -> Result<(), SessionError> {
         let editing = !self.buffer.is_empty();
         let float = config.numeric_mode == NumericMode::FloatingPoint;
         let cmd = match event {
@@ -100,8 +151,8 @@ impl HpInputSession {
                 Command::ChangeSign
             }
             InputEvent::Key(Key::Backspace) if !editing => Command::ClearX,
-            InputEvent::Command(Command::ChangeSign) => return self.edit(Key::ChangeSign, &config),
-            InputEvent::Key(key) => return self.edit(key, &config),
+            InputEvent::Command(Command::ChangeSign) => return self.edit(Key::ChangeSign, config),
+            InputEvent::Key(key) => return self.edit(key, config),
             InputEvent::Command(cmd) => cmd,
         };
         if editing {
@@ -203,39 +254,60 @@ impl HpInputSession {
                 }
             }
         }
-        if buf.len() > 256 {
-            return Err(InputError::InputTooLong.into());
-        }
-        let value = if float {
-            let complete = buf
-                .strip_suffix("e-")
-                .or_else(|| buf.strip_suffix('e'))
-                .unwrap_or(buf);
-            let n: f64 = complete.parse().map_err(|_| InputError::InvalidNumber)?;
-            if !n.is_finite() {
-                return Err(CalcError::FloatingPointOutOfRange.into());
-            }
-            Number::Float(n)
-        } else {
-            let w = config.word_config;
-            let n = u64::from_str_radix(buf, config.radix.base())
-                .map_err(|_| CalcError::IntegerOutOfRange)?;
-            let max = if config.radix == Radix::Decimal && w.signed_mode != SignedMode::Unsigned {
-                w.size.mask() >> 1
-            } else {
-                w.size.mask()
-            };
-            if n > max {
-                return Err(CalcError::IntegerOutOfRange.into());
-            }
-            Number::Integer(Word::from_bits(n, w.size))
-        };
+        let value = entry_preview(buf, config)?;
         self.calculator.update_value(if start {
             ValueUpdate::Start(value)
         } else {
             ValueUpdate::ReplaceX(value)
         })?;
         Ok(())
+    }
+}
+
+fn entry_preview(buf: &str, config: &CalculatorSnapshot) -> Result<Number, SessionError> {
+    if buf.len() > 256 {
+        return Err(InputError::InputTooLong.into());
+    }
+    if config.numeric_mode == NumericMode::FloatingPoint {
+        let (mantissa, exponent) = buf.split_once('e').unwrap_or((buf, ""));
+        let unsigned = mantissa.strip_prefix('-').unwrap_or(mantissa);
+        let (whole, fraction) = unsigned.split_once('.').unwrap_or((unsigned, ""));
+        let exp_digits = exponent.strip_prefix('-').unwrap_or(exponent);
+        if whole.is_empty()
+            || ![whole, fraction, exp_digits]
+                .iter()
+                .all(|part| part.bytes().all(|b| b.is_ascii_digit()))
+        {
+            return Err(InputError::InvalidNumber.into());
+        }
+        let complete = buf
+            .strip_suffix("e-")
+            .or_else(|| buf.strip_suffix('e'))
+            .unwrap_or(buf);
+        let n: f64 = complete.parse().map_err(|_| InputError::InvalidNumber)?;
+        if !n.is_finite() {
+            return Err(CalcError::FloatingPointOutOfRange.into());
+        }
+        Ok(Number::Float(n))
+    } else {
+        let w = config.word_config;
+        if !buf
+            .chars()
+            .all(|c| !c.is_ascii_lowercase() && c.is_digit(config.radix.base()))
+        {
+            return Err(InputError::InvalidNumber.into());
+        }
+        let n = u64::from_str_radix(buf, config.radix.base())
+            .map_err(|_| CalcError::IntegerOutOfRange)?;
+        let max = if config.radix == Radix::Decimal && w.signed_mode != SignedMode::Unsigned {
+            w.size.mask() >> 1
+        } else {
+            w.size.mask()
+        };
+        if n > max {
+            return Err(CalcError::IntegerOutOfRange.into());
+        }
+        Ok(Number::Integer(Word::from_bits(n, w.size)))
     }
 }
 fn incomplete(text: &str) -> bool {

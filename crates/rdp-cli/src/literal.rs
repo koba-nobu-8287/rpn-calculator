@@ -5,13 +5,19 @@ pub(crate) struct ParseContext {
     pub(crate) mode: NumericMode,
     pub(crate) word_config: WordConfig,
 }
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LiteralError {
     InputTooLong,
     InvalidDigit { digit: char, radix: Radix },
     InvalidNumber,
     FloatingPointOutOfRange,
 }
+impl std::fmt::Display for LiteralError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
+impl std::error::Error for LiteralError {}
 
 pub(crate) fn parse_literal(text: &str, ctx: ParseContext) -> Result<Number, LiteralError> {
     let token = text.trim_ascii();
