@@ -70,4 +70,4 @@ IA-L001～016のparse単体を引き継ぐ。W8 HEX 0x12/123/1FF/100はraw12/23/
 
 0xG/0b2/0o8はInvalidDigit、0x/--1/0d-1/内部空白はInvalidNumber、1_0/全角１は整数parse単体でInvalidDigit。257文字＋末尾GはInputTooLong。Float 1e-はInvalidNumberで、HP編集のIncompleteEntryとは異なる。
 
-解析失敗でCore呼出し0回・pending不変を11のspy/統合試験で確認する。CP-01/02はResolvedだがTBD-013のHP入力境界やTBD-021のFloat BSを解決しない。
+解析失敗でCore呼出し0回・pending不変を11のspy/統合試験で確認する。CLIの下位Wビット採用とキー入力の厳密拒否（TBD-013）を同じ幅外値で比較する。

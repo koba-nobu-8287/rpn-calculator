@@ -1,6 +1,6 @@
 # 13 結合試験・互換性評価
 
-2026-11-21 製品仕様（TBD-021 / DD-049）：Float編集でBS後に仮数の符号だけが残る場合、bufferを `0`、Xを `+0.0` とし、Editing / MantissaのままLiftを保持する。次の数字は追記する。IA-G012（旧SI-H003）を製品受入試験に含める。HP実機との照合はTBD-017で継続する。 TBD-001・006・008・016・018・019の製品判断を含む現在の集計はResolved 13 / Partial 9 / Open 0。以下の旧集計・保留記述は決定前の記録。
+製品仕様（TBD-017/021、DD-049）：Float編集でBS後に仮数の符号だけが残る場合、bufferを `0`、Xを `+0.0` とし、Editing / MantissaのままLiftを保持する。次の数字は追記する。IA-G012（旧SI-H003）を製品受入試験に含める。全22件はResolved。
 
 版：D-1.0 / 2026-11-14（日本時間）。本書は受入仕様であり、製品試験の実行結果ではない。
 
@@ -25,7 +25,7 @@ flowchart TD
 
 この図は試験前提の関係。全機能が完成するまでCore基本試験を待つ意味ではない。Integer基本経路→bit/1補数→Float/設定変換と、実装済み部分から段階的に実施する。
 
-private状態の検査は所有モジュール内、Core公開試験はcrates/rdp-core/tests、セッション公開試験はcrates/rdp-input/tests、CLI試験はcrates/rdp-cli/tests。tests/scenariosは共有データ。予定コマンドは`cargo test -p rdp-core`、`cargo test -p rdp-input`、`cargo test -p rdp-cli`。現時点の雛形でこれらが通るとは主張しない。
+private状態の検査は所有モジュール内、Core公開試験はcrates/rdp-core/tests、セッション公開試験はcrates/rdp-input/tests、CLI試験はcrates/rdp-cli/tests。tests/scenariosは共有データ。各クレートの試験コマンドは`cargo test -p rdp-core`、`cargo test -p rdp-input`、`cargo test -p rdp-cli`。
 
 ## 3. 既存IDの継承・移設
 
@@ -39,7 +39,7 @@ private状態の検査は所有モジュール内、Core公開試験はcrates/rd
 | TEST-047/048、IA-C013、IA-L018～020 | 原子性範囲の対比。単発全取消と先行成功保持を分ける |
 | TEST-053/054/056/060/064 | 11とIA-L群、プロセス・I/O・外部自動化 |
 | TEST-067 | 製品受入。f64の丸め・subnormal・範囲超過を検証 |
-| TEST-065/066/071 | 未確認互換・将来HP APIの該当範囲を保留管理 |
+| TEST-065/066/071 | HP資料との比較用（製品受入の対象外） |
 | SI-T001～076 | セッション統合としてIDと数値期待値を保持。必要Core命令成立後に実行 |
 | IA-L001～022 | CLI parse単体と実行を分ける。L017以降は11の依存が必要 |
 | IA-C001～016 | Core APIと内部順位・破損fixture。公開注入APIを増やさない |
@@ -53,7 +53,7 @@ private状態の検査は所有モジュール内、Core公開試験はcrates/rd
 
 Floatの±0はto_bits、Ones負0はrawで比較。NaNを正常stateの比較基準にせず、内部破損fixtureはInvariantViolationを検査する。WordSize全1～64、演算境界1/2/4/8/16/32/63/64、数値入力は1/2/3/4/8/16/32/63/64・4基数・全符号形式を対象とする。
 
-小幅1～4の全オペランド組合せは、実装と独立した数学/raw参照式で比較する。暫定式の参照値をHP確定値としない。Carry/GのKeepは前値0/1、条件更新は条件真偽、F0～3は非0パターンで保持を確認する。
+小幅1～4の全オペランド組合せは、実装と独立した数学/raw参照式で比較する。製品仕様の参照値をHP確定値としない。Carry/GのKeepは前値0/1、条件更新は条件真偽、F0～3は非0パターンで保持を確認する。
 
 ## 5. 必須の横断シナリオ
 
@@ -63,7 +63,7 @@ Floatの±0はto_bits、Ones負0はrawで比較。NaNを正常stateの比較基�
 | 編集→演算失敗→継続 | finishと演算を全取消し、次Digitは元bufferへ追記 |
 | 設定変更中の編集 | 旧設定finish、成功なら新設定、失敗なら編集を含め全保持 |
 | 全領域厳密変換 | R0の精度欠落だけでも全取消、Lも変換対象 |
-| CLI正規化とHP厳密拒否 | 同じ幅外数字でもCLIは下位bit、HPキーは暫定範囲エラー |
+| CLI正規化とHP厳密拒否 | 同じ幅外数字でもCLIは下位bit、キー入力は初回・継続とも範囲エラー |
 | CLI行構文と実行時失敗 | Syntaxは行全未実行、数値/計算失敗は先行成功保持 |
 | pending＋Divide | Pushも取消しpending保持。通常5 0 /と区別 |
 | エラー競合 | Float 1e＋HEXはmode不一致、同buffer＋DivideはIncompleteEntry |
@@ -74,20 +74,20 @@ Floatの±0はto_bits、Ones負0はrawで比較。NaNを正常stateの比較基�
 
 ## 6. 保留・互換性の扱い
 
-SI-H005は製品対象外の参照例。SI-H001/002/006～008はHP確認まで保留。SI-H003の製品期待値はIA-G012、SI-H004はIA-G004で試験し、重複集計しない。ignoreまたは未実装fixtureには理由・TBD-ID・解除条件を付ける。
+SI-H003はIA-G012、SI-H004はIA-G004に対応する。残るSI-Hは実機比較の参考資料として製品の合否集計から除く。
 
-全22TBDの現状はResolved 13 / Partial 9 / Open 0。本シリーズ作成だけでは状態を変更しない。Resolvedは仕様判断の解決であり、実装済みやHP互換合格ではない。
+製品仕様22件はすべてResolved。以下は製品の受入条件と対象範囲。
 
-| ゲート | 関連単位 | 方針 |
+| 決定 | 関連単位 | 方針 |
 |---|---|---|
-| TBD-001/011 | 03/07/09 | 起動・リセット直後のLiftはDisabled。固定レジスタとSTO/RCLの残件は011 |
-| TBD-007/008 | 04/05 | 008は両モードの製品受入。007の未確認フラグ条件は別途管理 |
-| TBD-004/006/014 | 12と将来仕様 | 006はf64による厳密な全領域変換。HP FLOATは製品対象外。WSIZE・倍長・LJは004/014 |
-| TBD-013/017/021 | 08/09 | HP境界を013/017で確認。符号だけ残るBSはDD-049に従う |
-| TBD-012/018 | 06/11と将来GUI | 018は表示窓なしの製品仕様。012のエラー解除は継続 |
+| TBD-001/011 | 03/07/09 | 既定16個、直接STO/RCL、生成・reset直後のLiftはDisabled |
+| TBD-007/008 | 04/05 | 両oneszeroモードの同一入力でflags一致、Unsigned CHS(0)はG=0、Float成功はC/G保持 |
+| TBD-004/006/014 | 12と将来仕様 | WSは全領域を同幅に変換。HP式WSIZE・FLOATとLJは対象外、倍長は将来拡張 |
+| TBD-013/017/021 | 08/09 | 初回・継続の幅外桁を拒否。Floatは文字単位で編集し、符号だけ残るBSは正0 |
+| TBD-012/018 | 06/11と将来GUI | CLIは診断。将来GUIは通知ダイアログを表示し、次のキーを通常処理 |
 | TBD-016 | 04/06/12 | f64の精度・範囲をTEST-067で検証する |
 | TBD-019 | 03/07 | レジスタ命令は直接STO/RCLのみ。レジスタ演算・Iレジスタ・間接指定は対象外 |
-| TBD-020 | 将来仕様 | 対象命令の棚卸し後に追加。現APIで偽装しない |
+| TBD-020 | 将来仕様 | 現行命令と外部CLIが対象。機能区分は全体§1.1 |
 
 ## 7. 完了の判定
 

@@ -1,6 +1,6 @@
 # 07 Calculator・命令実行
 
-版：D-1.0 / 2026-11-14（日本時間）。実装用仕様、製品コードは未実装。
+版：D-1.0 / 2026-11-14（日本時間）。実装単位の製品仕様。
 
 ## 1. 対象・根拠・依存
 
@@ -114,4 +114,4 @@ execute_allはexecuteを順に呼び、最初のErrで停止する。先行成�
 
 IA-C001～016のうち当該命令実装済み部分、TEST-020～031/047/048/055/061を検証する。CoreのIA-C002ではInputInProgressが存在せず、セッションIA-G006では拒否されることを対比する。Enter後PushはLift E、Enter後Start/ReplaceXはD保持。失敗は全Snapshotで比較する。
 
-TBD-001の初期Liftは起動・リセットともD、TBD-011のSTO/RCLは現行契約を採用。TBD-004/006/010/014のHP設定・bit命令を独自APIへ混在させない。未実装命令に依存する試験は持越しとして記録する。
+TBD-001/011に従い、初期LiftはDisabled、STO/RCL成功後はEnabled。現行の公開命令は§2、将来拡張・対象外の区分は[全体設計 §1.1](../rdp-calc-detailed-design.md)に従う。

@@ -1,8 +1,8 @@
 # 08 キー編集器
 
-2026-11-21 製品仕様（TBD-021 / DD-049）：Float編集でBS後に仮数の符号だけが残る場合、bufferを `0`、Xを `+0.0` とし、Editing / MantissaのままLiftを保持する。次の数字は追記する。IA-G012（旧SI-H003）を製品受入試験に含める。HP実機との照合はTBD-017で継続する。
+製品仕様（TBD-017/021、DD-049）：Float編集でBS後に仮数の符号だけが残る場合、bufferを `0`、Xを `+0.0` とし、Editing / MantissaのままLiftを保持する。次の数字は追記する。IA-G012（旧SI-H003）を製品受入試験に含める。
 
-版：D-1.0 / 2026-11-14（日本時間）。HP未確認の暫定編集規則と保留境界を含む。
+版：D-1.0 / 2026-11-14（日本時間）。キー入力の製品規則。
 
 ## 1. 対象・根拠・依存
 
@@ -30,7 +30,7 @@ Idleはbuffer空・part=Mantissa、EditingはASCII 1～256文字、合法な編�
 
 Digitは基数に合うASCIIのみ。BIN=0/1、OCT=0～7、DEC=0～9、HEX=0～9/A～F（小文字を大文字化）。Digit('-')、全角、G等はInput(InvalidDigit { digit, radix })。有効な候補文字列とpreviewを作ってから09へ渡し、不正初回桁で先にliftしない。
 
-Idle数字はその桁から新規bufferを作る。Editing数字は末尾へ追記し、先頭ゼロを保持する。DECは数学値範囲を厳密検査、BIN/OCT/HEXは符号なしraw範囲を検査し、幅超過はCalculation(IntegerOutOfRange)。例：W8 Twos HEXのFFはrawFF、DECの128は現行暫定契約で拒否する。
+Idle数字はその桁から新規bufferを作る。Editing数字は末尾へ追記し、先頭ゼロを保持する。DECは数学値範囲を厳密検査、BIN/OCT/HEXは符号なしraw範囲を検査し、幅超過はCalculation(IntegerOutOfRange)。例：W8 Twos HEXのFFはrawFF、DECの128は初回・継続とも拒否する。
 
 Integer CHSは文字列への負号付加ではない。09がfinishしてCore ChangeSignへ送る。次の数字は新規入力となる。Integerの点/EEXはCalculation(NumericModeMismatch)。
 
@@ -72,10 +72,10 @@ Floatの `-1` でBSを押すと `0` に正規化する。Xは正のゼロとな�
 
 finishは旧mode/radix/WordConfigで完成値を再解析し、成功ならbuffer空、phase=Idle、part=Mantissa。Core Xへの採用は09のReplaceXで行い、finish単体はCoreに触らない。Idleではセッションがfinishを省略し、未編集Xを再解析しない。
 
-エラー順位は01。曖昧な符号境界を通常のInvalidNumberとして確定扱いにしない。一般の不正文法、桁、未完成、長さはInput、値域・mode不適合はCalculationへ分類する。
+エラー順位は01。仮数の符号だけが残るBSには§5の正規化を適用する。一般の不正文法、桁、未完成、長さはInput、値域・mode不適合はCalculationへ分類する。
 
 ## 7. 受入・TBD
 
 SI-T027～040/045～052/073/074、TEST-032～038、IA-G002/003/005/007を単体・統合へ配置する。Floatはto_bitsで±0を区別し、長さ境界は先頭ゼロで数値範囲の影響を避ける。
 
-TBD-013はHP幅外桁、017は編集細部、021は符号だけ残るBS。CLI CP-01の切り捨てやCP-02の単独ハイフンをキー編集へ適用しない。
+TBD-013では初回桁にも継続桁と同じ幅検査を行う。拒否時はX・buffer・Lift・flagsを含む全状態を保持する。TBD-017/021の編集規則はCLIのkeysと将来GUIで共用する。
