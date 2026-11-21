@@ -1,6 +1,6 @@
 # rdp-calc RPNスタック・数値入力 詳細設計
 
-2026-11-21 製品仕様（TBD-021 / DD-049）：Float編集でBS後に仮数の符号だけが残る場合、bufferを `0`、Xを `+0.0` とし、Editing / MantissaのままLiftを保持する。次の数字は追記する。IA-G012（旧SI-H003）を製品受入試験に含める。HP実機との照合はTBD-017で継続する。 現在の集計はResolved 7 / Partial 11 / Open 4。以下の旧集計・保留記述は決定前の記録。
+2026-11-21 製品仕様（TBD-021 / DD-049）：Float編集でBS後に仮数の符号だけが残る場合、bufferを `0`、Xを `+0.0` とし、Editing / MantissaのままLiftを保持する。次の数字は追記する。IA-G012（旧SI-H003）を製品受入試験に含める。HP実機との照合はTBD-017で継続する。 TBD-001・006・008・016・018・019の製品判断を含む現在の集計はResolved 13 / Partial 9 / Open 0。以下の旧集計・保留記述は決定前の記録。
 
 版：SI-1.1（入力API分離反映） / 2026-10-31（日本時間） / UTF-8・LF
 
@@ -138,7 +138,7 @@ LAST Xの全分類はV5 §5.2.1を維持する。算術・論理・シフト・�
 | SI-10: 任意 | CHS | Integer、またはFloatのIdle | Integer finish→補数→SaveX、Float反転→KeepL | Integerはfinish、Floatは空 | I_E |
 | SI-11: E_l | BS | 削除後の文法が定義済み | X=preview、再Liftなし | 末尾1字削除、空なら0、part再判定 | E_l |
 | SI-12: I_l | BS | 常時 | X=modeの+0、L保持 | 空維持 | I_D |
-| SI-13: 任意 | SetRadix／SetWordSize／SetSignedMode／SetFlag | 旧設定finishと対象設定の検証成功 | 基数/符号/flagは移動なし、幅は全領域変換 | finishで空 | I_l |
+| SI-13: 任意 | SetRadix／SetWordSize／SetSignedMode／SetOnesZeroMode／SetFlag | 旧設定finishと対象設定の検証成功 | 基数/符号/flagは移動なし、幅は全領域変換 | finishで空 | I_l |
 | SI-14: 任意 | SetNumericMode | 旧設定finish、全領域の厳密変換成功 | 同位置の全値変換、Lも変換 | finishで空 | I_l |
 | SI-15: 任意 | Recall／RecallLastX | finish、参照先有効 | 元Liftで条件lift→X=v、L保持 | finishで空 | I_E |
 | SI-16: 任意 | Store | finish、参照先有効 | 無移動、Ri=X | finishで空 | I_E |
@@ -203,7 +203,7 @@ BSは数字が残る場合に末尾を削り、指数記号を消したらMantis
 ### 6.3 入力途中の設定・スタック操作
 
 1. 基数変更は旧基数finish→radix更新→Idle、Lift保持。HEXの`A`をDECへ変えても10を保持し、DEC文字としてAを再解析しない。同じ基数の指定も入力終了する。
-2. WordSize／SignedModeは旧幅・旧符号でfinish。SetWordSizeは全4段/L/全Riを縮小マスクまたはゼロ拡張、flags/Lift保持。SetSignedModeはrawを保持し解釈変更。Floatで両設定はNumericModeMismatch（実機のFloat中補数設定とは差がある）。
+2. WordSize／SignedModeは旧幅・旧符号でfinish。SetWordSizeは全4段/L/全Riを縮小マスクまたはゼロ拡張、flags/Lift保持。SetSignedModeはrawを保持し解釈変更。SetOnesZeroModeも旧編集をfinishしてから設定だけを更新する。FloatでSetWordSize／SetSignedModeはNumericModeMismatch（実機のFloat中補数設定とは差がある）。
 3. SetNumericModeは全4段/L/Riを一括厳密変換。Integer→f64の厳密性、Float→Integerの整数性・範囲・往復一致を全値で検査。一つでも失敗すれば全体取消。成功でradix=DEC、WordConfig保持、flags/Lift保持。負0はV5 §4.4の対応を維持。同一mode指定もfinishするが値とradixは変えない。
 4. FloatのSetRadix(DEC)はmodeを変えずfinish。HEX/OCT/BINはNumericModeMismatch。実機の整数復帰と同じキーとしてUIへ割り当てる場合は新たなCommand設計が必要。
 5. Swap/Roll/演算/STO/RCLはfinishしてから実行。未完成指数なら失敗、移動も保存も起こらない。CLx/ClearStackはfinish不要。ClearRegistersは編集を保持する独自API。

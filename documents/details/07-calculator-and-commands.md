@@ -38,6 +38,7 @@ pub enum Command {
     MaskLeft(u8), MaskRight(u8), EditBit { index: u8, edit: BitEdit },
     CountBits,
     SetRadix(Radix), SetWordSize(WordSize), SetSignedMode(SignedMode),
+    SetOnesZeroMode(OnesZeroMode),
     SetNumericMode(NumericMode), Store(usize), Recall(usize),
     SetFlag { index: u8, value: bool },
     ClearX, ClearStack, ClearRegisters,
@@ -77,6 +78,7 @@ Push/Start/ReplaceXはすべて02の厳密値検証。幅外を自動マスク�
 | ClearRegisters | 全Riをmodeの正0、配列保持 | 保持 | 保持 |
 | SetFlag | 指定F0～5だけ変更 | 保持 | 保持 |
 | SetRadix | 配列・raw保持 | 保持 | 保持 |
+| SetOnesZeroMode | WordConfigのゼロ処理設定のみ更新 | Keep | 保持 |
 | SetWordSize、SetSignedMode、SetNumericMode | 12の全領域更新 | 表現変換のみ、履歴保存なし | 保持 |
 
 RecallLastXはlift前にLをコピーしてvとする。StoreはこのCoreが受け取った現在Xを保存する。セッションはそれに先立ち旧設定でfinishする。Float CHSはCoreでは確定Xの符号反転で、編集例外は09が扱う。演算flagsは04/05の指示を適用し、移動・記憶・値入力はflags保持。
@@ -112,4 +114,4 @@ execute_allはexecuteを順に呼び、最初のErrで停止する。先行成�
 
 IA-C001～016のうち当該命令実装済み部分、TEST-020～031/047/048/055/061を検証する。CoreのIA-C002ではInputInProgressが存在せず、セッションIA-G006では拒否されることを対比する。Enter後PushはLift E、Enter後Start/ReplaceXはD保持。失敗は全Snapshotで比較する。
 
-TBD-001の初期Liftは独自D、TBD-011のSTO/RCLは現行契約を採用。TBD-004/006/010/014のHP設定・bit命令を独自APIへ混在させない。未実装命令に依存する試験は持越しとして記録する。
+TBD-001の初期Liftは起動・リセットともD、TBD-011のSTO/RCLは現行契約を採用。TBD-004/006/010/014のHP設定・bit命令を独自APIへ混在させない。未実装命令に依存する試験は持越しとして記録する。

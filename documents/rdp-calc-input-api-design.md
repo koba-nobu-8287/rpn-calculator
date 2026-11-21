@@ -316,6 +316,8 @@ sequenceDiagram
 
 CLI互換変更は範囲超過/Unsigned負数受理、単独-の0化（減算sub）、Literal終了コード。API変更は編集型・キー命令の移設、数値更新API、snapshot分離。算術・HPスタック効果は維持する。CoreはEditingを知らないためSI-18のPush拒否はセッションの契約となる。
 
-TBD-013のCLI部分はResolved、HP部分はPartial。TBD-021はFloat BSの製品・HP境界としてOpenを維持しCP-02と混同しない。TBD-022はResolved。その他HP変換・flags・記憶領域・表示解除の残件は維持する。マニュアル照合記録は既存調査として継承し今回新たな実機確認を主張しない。
+TBD-013のCLI部分はResolved、HP部分はPartial。TBD-021の製品動作は確定。HP編集境界は017で扱う。TBD-022はResolved。flags・記憶領域・表示解除の残件は維持する。マニュアル照合記録は既存調査として継承し今回新たな実機確認を主張しない。
 
 レビュー重点は1補数ビット列化、単独-の移行、ValueUpdateの公開範囲、候補コピーコスト、順位の依存ガード。CP-01～03は製品設計として確定し、これらのレビュー項目を未確定仕様と混同しない。
+
+`Command::SetOnesZeroMode` は設定変更と同じ経路で実行する。編集値は旧設定でfinishし、その後に設定を更新する。失敗時には編集とCoreをともに保持する。

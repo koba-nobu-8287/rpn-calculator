@@ -1,6 +1,6 @@
 # rdp-calc Rust詳細設計書
 
-2026-11-21 製品仕様（TBD-021 / DD-049）：Float編集でBS後に仮数の符号だけが残る場合、bufferを `0`、Xを `+0.0` とし、Editing / MantissaのままLiftを保持する。次の数字は追記する。IA-G012（旧SI-H003）を製品受入試験に含める。HP実機との照合はTBD-017で継続する。 現在の集計はResolved 7 / Partial 11 / Open 4。以下の旧集計・保留記述は決定前の記録。
+2026-11-21 製品仕様（TBD-021 / DD-049）：Float編集でBS後に仮数の符号だけが残る場合、bufferを `0`、Xを `+0.0` とし、Editing / MantissaのままLiftを保持する。次の数字は追記する。IA-G012（旧SI-H003）を製品受入試験に含める。HP実機との照合はTBD-017で継続する。 TBD-001・006・008・016・018・019の製品判断を含む現在の集計はResolved 13 / Partial 9 / Open 0。以下の旧集計・保留記述は決定前の記録。
 
 - 文書版：v0.6 CP-01～03・入力API分離（2026-10-31）
 - 作成日：2026-10-19 / 改訂日：2026-10-31（日本時間）
@@ -73,7 +73,7 @@ SRC-06/07はメーカー著作の一次資料の転載であり、OCRの数式�
 | SPEC-ERROR | エラー分類と状態保持 | 設計確定、実機番号はTBD |
 | SPEC-CLI | 構文と実行・終了コード | 設計確定 |
 | SPEC-PROGRAM | HP内蔵プログラム機能 | 対象外として確定。自動化はCLI経由の外部スクリプト |
-| SPEC-ADV | LJ、倍長、間接指定など | 未対応を明示、無断削除しない |
+| SPEC-ADV | LJ、倍長 | 対応範囲はTBD-014/020。間接指定はTBD-019で対象外 |
 
 ## 第2章：ソフトウェアアーキテクチャ
 
@@ -111,13 +111,13 @@ CLI→Core、CLI/GUI→rdp-input→Core。CoreからCLI/rdp-input/端末への�
 | Number（public）：値 | Integer(Word), Float(f64) / public | 状態内ではモード一致・有限。外部でFloat(NaN)を作れてもexecuteで拒否 |
 | Word（public）：生ビット | bits: u64 / private | from_bitsで指定幅へマスク。幅を自身に保持しないため、状態への取込み時にも検査 |
 | WordSize（public）：幅 | 0: u8 / private | new(1..=64)だけが生成可能 |
-| WordConfig（public）：整数解釈 | size: WordSize; signed_mode: SignedMode / public | 16、TwosComplement |
+| WordConfig（public）：整数解釈 | size: WordSize; signed_mode: SignedMode; ones_zero_mode: OnesZeroMode / public | 16、TwosComplement、Canonical |
 | SignedMode（public） | Unsigned, OnesComplement, TwosComplement | TwosComplement |
 | Radix（public） | Binary, Octal, Decimal, Hexadecimal | Hexadecimal、基数2/8/10/16 |
 | NumericMode（public） | Integer, FloatingPoint | Integer |
 | InputState（rdp-input private） | phase: EntryPhase; buffer: String; part: EntryPart / private | Idle、空、Mantissa。LiftはCoreに分離 |
 | EntryPhase（rdp-input public） | Idle, Editing | Idle。モードや指数部とは独立 |
-| StackLift（public） | Enabled, Disabled | Disabled（独自暫定、TBD-001） |
+| StackLift（public） | Enabled, Disabled | Disabled（起動・リセット直後の製品仕様、TBD-001） |
 | EntryPart（rdp-input public） | Mantissa, Exponent | Mantissa。整数では常にMantissa |
 | Flags（public、変更はcrateのみ） | bits: u8 / private | 0。上位2bit常時0。F0～F5のみ |
 | FlagAction（crate） | Keep, Clear, Set | Keep |
@@ -141,7 +141,7 @@ pub enum Command {
     RotateN(RotateKind),
     MaskLeft(u8), MaskRight(u8), EditBit { index: u8, edit: BitEdit },
     CountBits,
-    SetRadix(Radix), SetWordSize(WordSize), SetSignedMode(SignedMode),
+    SetRadix(Radix), SetWordSize(WordSize), SetSignedMode(SignedMode), SetOnesZeroMode(OnesZeroMode),
     SetNumericMode(NumericMode), Store(usize), Recall(usize),
     SetFlag { index: u8, value: bool },
     ClearX, ClearStack, ClearRegisters,
@@ -219,7 +219,7 @@ validate(config)はレジスタ数とfloat/Decimal整合、validate(state)は全
 
 reconfigure_wordは入力確定済みIntegerのみ。暫定TBD-004：全スタック、LAST X、全記憶レジスタを同時変換し、縮小は低位切詰め、拡大は符号形式によらずゼロ拡張。スタックの縮小/拡大はSRC-08印刷p.32確認済み。LAST Xと記憶領域への同一変換は独自暫定であり、HPでは記憶領域のraw storageを保存して境界を再解釈する（p.67）。RegisterBankの再設計はTBD-004に残し、現方式で記憶領域互換を主張しない。F4/F5はKeep、LiftはNeutral。符号変更だけなら全raw bitsを保持して再解釈（TBD-005）。float中のSetWordSize/SetSignedModeはNumericModeMismatch。SetRadixもFloatでDecimal以外ならNumericModeMismatchとし、旧入力を確定した候補状態ごと破棄する。変更失敗時は候補破棄。
 
-convert_modeの暫定TBD-006：全5スタック値＋全記憶領域を数値変換。Integer→Floatは表現がf64で厳密に保持できる整数のみ受理、負のゼロは-0.0。Float→Integerは有限かつ整数、範囲内かつ往復変換で値が一致するもののみ受理。丸め・切捨て変換はしない。負のゼロはOnesComplementなら負のゼロ、他形式なら0。LAST Xも変換しクリアしない（この厳密変換は独自APIの暫定契約。HPのFLOATはX=Y×2^X、Y/Z/T/LAST Xクリア、幅56、Lift有効でありp.57で確認済み。HP変換命令を追加するかはTBD-006に残す）。radixは双方の切替でDecimal、flags/Lift維持。複数値の一部だけ変換しない。同一モード指定も入力確定を行うが値・基数は変更しない。単体試験：TEST-039～043、061。
+convert_modeの製品仕様（TBD-006）：全5スタック値＋全記憶領域を数値変換。Integer→Floatは表現がf64で厳密に保持できる整数のみ受理、負のゼロは-0.0。Float→Integerは有限かつ整数、範囲内かつ往復変換で値が一致するもののみ受理。丸め・切捨て変換はしない。負のゼロはOnesComplementなら負のゼロ、他形式なら0。LAST Xも変換しクリアしない（この厳密変換を製品仕様とする。HPのFLOATはX=Y×2^X、Y/Z/T/LAST Xクリア、幅56、Lift有効でありp.57で確認済み。HP変換命令は製品の対象外）。radixは双方の切替でDecimal、flags/Lift維持。複数値の一部だけ変換しない。同一モード指定も入力確定を行うが値・基数は変更しない。単体試験：TEST-039～043、061。
 
 ### 4.5 rdp-inputの編集器
 
@@ -361,7 +361,7 @@ newは1～1024か検査、try_reserveで確保失敗を返す。get/setは0≤in
 
 Coreはformat_number(value, radix, mode, config, flags) -> Result<String, CalcError>を維持。F3・基数・符号解釈の表示は変更しない。parse_number/preview_numberをCoreから除去しCLIとキー編集器へ分離する。CLI切り捨て・負数・負0・単独-・接頭辞・上限は[入力API設計 IA-1.0](rdp-calc-input-api-design.md) §2。
 
-format_numberはBIN/OCT/HEXでraw bits、DECでSignedMode解釈、OnesComplementの負0は`-0`。F3=0で先頭ゼロ抑制、F3=1で非DEC整数をceil(W/log2(base))桁へ0詰め（暫定TBD-018）。Floatは有限f64の最短往復可能表現、-0.0は`-0`。幅・接尾文字はCLI、型・mode不一致はErr。既存TEST-043を維持する。
+format_numberはBIN/OCT/HEXでraw bits、DECでSignedMode解釈、OnesComplementの負0は`-0`。F3=0で先頭ゼロ抑制、F3=1で非DEC整数をceil(W/log2(base))桁へ0詰め（TBD-018）。Floatは有限f64の最短往復可能表現、-0.0は`-0`。幅・接尾文字はCLI、型・mode不一致はErr。既存TEST-043を維持する。
 
 ### 4.13 error.rs
 
@@ -398,7 +398,7 @@ CLI型・構文・シーケンスは第9章を正本とする。mainは接続だ
 | Recall V / Lift=Disabled | 同上 | `[V,B,C,D]; L` | Idle/Enabled、暫定 |
 | 全エラー | 同上 | 完全に同じ | phase/lift/buffer/flags/registers/configも同じ |
 
-ENTER・CLxの通常動作はSRC-03を継承する。特殊なキー履歴による動作はTBD-001。IntegerのCHSは入力を確定して補数を生成しLAST Xを保存する。FloatのCHSは別分類（§5.2）。低水準のswap/rollとCommand::SwapXY等は区別し、後者は入力を確定してLiftをEnabledにする（SRC-08印刷p.99～100）。
+ENTER・CLxの通常動作はSRC-03を継承する。起動・リセット直後はLift Disabled。最初の数値入力はXを置換し、Y/Z/Tをリフトしない。IntegerのCHSは入力を確定して補数を生成しLAST Xを保存する。FloatのCHSは別分類（§5.2）。低水準のswap/rollとCommand::SwapXY等は区別し、後者は入力を確定してLiftをEnabledにする（SRC-08印刷p.99～100）。
 
 ### 5.2 LAST Xと命令効果
 
@@ -418,8 +418,9 @@ ENTER・CLxの通常動作はSRC-03を継承する。特殊なキー履歴によ
 | SwapXY / RollUp / RollDown | 確定 | Keep | Enabled | 外部確認SRC-08 p.99/100 |
 | SetRadix | 旧基数で確定 | Keep | Keep | SRC-03内の曖昧さを解消、互換性TBD-001 |
 | SetWordSize | 旧設定で確定 | 必要時値変換、履歴保存なし | Keep | 独自直接API、領域変換はTBD-004 |
+| SetOnesZeroMode | 旧設定で確定 | Keep、ゼロ処理設定のみ更新 | Keep | Floatでも指定可能 |
 | SetSignedMode | 旧設定で確定 | Keep、raw保持で再解釈 | Keep | 外部確認SRC-08 p.35/98～100、Integer内の変更 |
-| SetNumericMode | 旧モードで確定 | 数値変換（クリアしない） | Keep | 暫定TBD-006 |
+| SetNumericMode | 旧モードで確定 | 数値変換（クリアしない） | Keep | 製品仕様TBD-006 |
 | Store | 確定 | Keep | Enabled | 暫定TBD-011 |
 | Recall / RecallLastX | 確定後、現在Liftで格納 | Keep | Enabled | 暫定TBD-011/003 |
 | SetFlag | 確定 | Keep | Keep | 独自直接API、実機分類TBD-007 |
@@ -431,7 +432,7 @@ ENTER・CLxの通常動作はSRC-03を継承する。特殊なキー履歴によ
 
 #### 5.2.1 LAST X分類の確定範囲
 
-現在のCommand集合でHP対応命令に分類漏れはない。IntegerのAdd/Subtract/Multiply/Divide/Remainder/ChangeSign/Absolute/Sqrt、And/Or/Xor/Not、Shift全種、Rotate全種、CountBitsは実行前Xを保存する。SwapXY/RollUp/RollDown/Enter/ClearX/Store/Recall/RecallLastX/SetRadix/SetSignedMode/SetFlagは履歴保存をしない。FloatのChangeSignだけはSave対象外。Floatの四則/Absolute/SqrtはSave、Float Remainderは独自Save契約。BackspaceはKeep。独自PushはKeep、ClearStackはClear、ClearRegistersはKeep。独自SetWordSize/SetNumericModeは第4章の変換契約を使い、HPのWSIZE/FLOATと同一視しない。Mask/EditBitの引数付きAPIのSaveも独自契約。HP WSIZEは元X保存、HP FLOATへの移行はClearである（TBD-004/006でAPI対応を検討）。
+現在のCommand集合でHP対応命令に分類漏れはない。IntegerのAdd/Subtract/Multiply/Divide/Remainder/ChangeSign/Absolute/Sqrt、And/Or/Xor/Not、Shift全種、Rotate全種、CountBitsは実行前Xを保存する。SwapXY/RollUp/RollDown/Enter/ClearX/Store/Recall/RecallLastX/SetRadix/SetSignedMode/SetFlagは履歴保存をしない。FloatのChangeSignだけはSave対象外。Floatの四則/Absolute/SqrtはSave、Float Remainderは独自Save契約。BackspaceはKeep。独自PushはKeep、ClearStackはClear、ClearRegistersはKeep。独自SetWordSize/SetNumericModeは第4章の変換契約を使い、HPのWSIZE/FLOATと同一視しない。Mask/EditBitの引数付きAPIのSaveも独自契約。HP WSIZEは元X保存、HP FLOATへの移行はClearである（WSIZEはTBD-004、HP FLOATは製品対象外）。
 
 ### 5.3 演算シーケンス（SPEC-TXN）
 
@@ -474,13 +475,17 @@ Unsignedの乗算は最大(2^64−1)^2を扱うためu128を使う。これをi1
 ### 7.2 演算アルゴリズムの規定
 
 1. **ADD**：Unsigned/2の補数はraw和の低Wビット。Carryはraw和>M。1の補数はraw和の低Wビットに上位Carryを加え戻す。Carryは補正前のraw和で判定。Gは解釈済み数学値の和が形式の範囲外か。
-2. **SUB**：Unsigned/2の補数は(a−b) mod 2^W。Carryはraw比較a<b。1の補数は借り発生時に低Wビット差からさらに1を減じ、Wビットへ収めるend-around borrowを暫定採用。数学差でGを判定。SUBをADD(Y, CHS(X))へ置換しない。ゼロ表現はTBD-008。
-3. **MUL**：数学積を求めGを判定。Unsigned/2の補数は低Wビット。1の補数は絶対値の積をMで剰余化し、負ならそのWビット反転。ゼロ結果の符号はオペランドの符号bitの排他的論理和を暫定採用。W=1でもM=1で除算可能。CarryはKeep。
-4. **DIV/RMD**：商は0方向への切捨て、余りr=y−q*x。Unsignedはu128、符号付きはi128。2の補数最小値/−1もi128で計算し、DIVは結果を幅内へ戻しG=1。負のゼロ除数もDivisionByZero。1の補数のゼロ商は符号bitのXOR、ゼロ余りはYの符号bitを暫定継承。
+2. **SUB**：Unsigned/2の補数は(a−b) mod 2^W。Carryはraw比較a<b。1の補数は借り発生時に低Wビット差からさらに1を減じ、Wビットへ収めるend-around borrowを用いる。数学差でGを判定。SUBをADD(Y, CHS(X))へ置換しない。ゼロ表現はTBD-008。
+3. **MUL**：数学積を求めGを判定。Unsigned/2の補数は低Wビット。1の補数は絶対値の積をMで剰余化し、負ならそのWビット反転。ゼロ結果の符号はオペランドの符号bitの排他的論理和をrawモードで採用。W=1でもM=1で除算可能。CarryはKeep。
+4. **DIV/RMD**：商は0方向への切捨て、余りr=y−q*x。Unsignedはu128、符号付きはi128。2の補数最小値/−1もi128で計算し、DIVは結果を幅内へ戻しG=1。負のゼロ除数もDivisionByZero。1の補数のゼロ商は符号bitのXOR、ゼロ余りはYの符号bitをrawモードで継承。
 5. **符号反転/ABS**：数学値でGを判定。2の補数の最小値はrawを維持しG=1。UnsignedのCHSは0なら0、非0ならmod 2^Wで負数を表しG=1とする暫定演算（CLIの負数リテラルはIA §2の剰余受理、Core Pushは完成rawの厳密検査であり、CHSとは別契約）。1の補数のCHSはraw反転、ABSは符号bitを見て負なら反転し−0を+0へ。
-6. **SQRT**：非負整数の最大k（k²≤x）を整数演算で計算。Carryはk²≠x。負値はDomainError、1の補数−0は0として計算し暫定+0。
+6. **SQRT**：非負整数の最大k（k²≤x）を整数演算で計算。Carryはk²≠x。負値はDomainError、1の補数−0は0として計算し+0。
 
-これらは暫定実装を可能にする具体式。特に1の補数のゼロ結果と範囲外ビット列はTBD-008、各命令のflagsはTBD-007。数学値だけに変換してrawを捨てる実装は禁止。
+1の補数のADD/SUB/MUL/DIV/RMDでは、幅内の結果を求め、各命令の規則でフラグ更新を決めた後、`canonical`（既定）なら±0をraw 0に統一する。`raw`ではADD/SUBの循環演算結果、MUL/DIVの符号bit XOR、RMDの被除数の符号をそのまま使う。W=1～64で共通とし、±0除数はどちらもDivisionByZero。CHSは全bit反転、ABS/SQRTのゼロは+0。ビット操作・転送・表示では算術用の正規化を行わない。
+
+`oneszero canonical`（B案・既定）と `oneszero raw`（A案）をREPL・ワンショットの共通コマンドとする。設定はセッション単位で保持し、以後の1の補数算術に適用する。切替自体はスタック、LAST X、レジスタ、フラグ、Liftを保持する。他の符号形式やFloatでも設定でき、1の補数へ戻ると適用される。
+
+各命令のflagsの残件はTBD-007で扱う。数学値だけに変換してrawを捨てる実装は禁止。
 
 ### 7.3 フラグ記法
 
@@ -555,7 +560,7 @@ SRC-08印刷p.50～51/97/100ではMASKL/MASKRはabs(X)を個数とする単項�
 
 ### 7.7 浮動小数点（SPEC-FLOAT）
 
-f64同士のAdd/Subtract/Multiply/Divide/Remainder/ChangeSign/Absolute/Sqrtを扱う。Remainderは切捨て商によるRustの`%`相当。sqrtの負数はDomainError、±0除算はDivisionByZero、NaN/Inf入力または非有限結果はFloatingPointOutOfRange。有限のsubnormal/underflowで0になる結果は受理。演算はf64の精度で丸められ、十進丸めエミュレーションはしない。flagsはF4/F5ともKeepという独自暫定契約を維持する（TBD-016/007）。HPではFloat四則もF5を更新するため互換仕様ではない（SRC-08 p.98脚注）。スタック・Liftは整数の同分類と同じ。ただしFloatのChangeSignはLAST Xを保持し、編集中は編集を継続する。FloatのRemainderは独自拡張として演算前Xを保存する。
+f64同士のAdd/Subtract/Multiply/Divide/Remainder/ChangeSign/Absolute/Sqrtを扱う。Remainderは切捨て商によるRustの`%`相当。sqrtの負数はDomainError、±0除算はDivisionByZero、NaN/Inf入力または非有限結果はFloatingPointOutOfRange。有限のsubnormal/underflowで0になる結果は受理。演算はf64の精度で丸められ、十進丸めエミュレーションはしない。flagsはF4/F5ともKeepという独自暫定契約を維持する（TBD-007）。HPではFloat四則もF5を更新するため互換仕様ではない（SRC-08 p.98脚注）。スタック・Liftは整数の同分類と同じ。ただしFloatのChangeSignはLAST Xを保持し、編集中は編集を継続する。FloatのRemainderは独自拡張として演算前Xを保存する。
 
 Floatモードでビット命令はNumericModeMismatch。整数/Float混在の自動昇格はしない。整数→float切替で情報欠落を拒否する厳密変換と、通常のf64計算時の丸めは別契約。変換チェックは2^64付近での`as u64`の飽和に依存せず、先に範囲を広い型で検証する。例えばUnsigned u64::MAXはf64で2^64へ丸められるため変換拒否する。
 
@@ -662,6 +667,7 @@ run_actionsはinteractive=false時にShowStack/ShowStatus/Help/Exit/TestBitをIn
 | `rdp-calc --float "0.5 0.25 +"` | Float、結果0.75 |
 | `hex / dec / oct / bin` | SetRadix |
 | `wsize N` | SetWordSize、Nは十進1～64。HPのXを使うWSIZEではない |
+| `oneszero canonical / oneszero raw` | SetOnesZeroMode。引数欠落はMissingArgument、不正値はInvalidArgument |
 | `signed unsigned / signed ones / signed twos` | SetSignedMode |
 | `integer / float` | SetNumericMode |
 | `+ * / %`、`add sub mul div rmd` | 算術 |
@@ -720,7 +726,7 @@ keysは引用符内の命令名と数字片を展開し、`digit:X`、`.`、`eex
 | TEST-017 | flags/暫定 | 負数加算 | W8 2補数Y=FF X=FF | X=FE,C=1,G=0（暫定） | SPEC-INT §7.4; TBD-007 |
 | TEST-018 | 境界値/暫定 | 1補数循環Carry | W4 ones Y=E X=3 | X=2,C=1,G=0（SRC-03例の暫定再現） | SPEC-INT §7.2; TBD-008/007 |
 | TEST-019 | flags/暫定 | Borrow | W4 unsigned Y=0 X=1 | X=F,C=1,G=1（暫定） | SPEC-INT §7.4; TBD-007 |
-| TEST-020 | 状態遷移/継承 | 基本加算 | DEC、keys 5 ENTER 3 + | [8,0,0,0],L=3,Idle/E | TR-01..08; TBD-001/003 |
+| TEST-020 | 製品受入 | リセット後の入力と基本加算 | DEC、リセット直後にLift Disabledを検査し、keys 5（Y/Z/T保持）、ENTER 3 + | [8,0,0,0],L=3,Idle/E | TR-01..08; TBD-001/003 |
 | TEST-021 | 状態遷移/継承 | 連続ENTER | DEC、keys 5 ENTER ENTER 3 + | [8,5,0,0],L=3,Idle/E | TR-05/06; TBD-001 |
 | TEST-022 | 状態遷移/継承 | CLx後上書き | DEC、keys 5 ENTER CLx 3 | [3,5,0,0],L=0,Editing/D | TR-07/02; TBD-001 |
 | TEST-023 | 状態遷移/継承 | 演算後自動Lift | DEC、keys 5 ENTER 3 + 2 * | X=16、L=2、Idle/E | TR-01/08; TBD-001/003 |
@@ -742,8 +748,8 @@ keysは引用符内の命令名と数字片を展開し、`digit:X`、`.`、`eex
 | TEST-039 | 結合/外部部分確認 | 幅拡大 | W8 twos rawFFをスタックへ、SetWordSize(16) | 各スタックraw00FF。LAST X/記憶領域は独自暫定ゼロ拡張、互換試験対象外 | §4.4; SRC-08 p.32; TBD-004 |
 | TEST-040 | 結合/外部部分確認 | 幅縮小 | W16 raw1234、SetWordSize(8) | スタックraw34。元幅へ戻しても1234を復元しない。記憶領域再配置は未確定 | §4.4; SRC-08 p.32/67; TBD-004 |
 | TEST-041 | 結合/外部確認 | 補数変更 | W8 rawFFを3形式の全6遷移、C/G各0/1、Lift E/D | 全raw保持、解釈はUnsigned255/ones負0/twos負1、flags/Lift保持、LAST X履歴保存なし | SRC-08 p.35/98～100; TBD-005 Closed |
-| TEST-042 | 結合/暫定 | 整数→Float情報欠落 | W64 unsignedでu64::MAXをXへ | SetNumericMode(Float)はIntegerOutOfRange、全状態保持（暫定） | SPEC-FLOAT; TBD-006 |
-| TEST-043 | 単体/暫定 | 表示 | W8 rawFF、DEC twos/unsigned/ones、HEX F3=0/1でraw1 | DEC=-1/255/-0、HEX=1/01（暫定表示） | §4.12; TBD-018 |
+| TEST-042 | 製品受入 | 整数→Float情報欠落 | W64 unsignedでu64::MAXをXへ | SetNumericMode(Float)はIntegerOutOfRange、全状態保持 | SPEC-FLOAT; TBD-006 |
+| TEST-043 | 製品受入 | 表示 | W8 rawFF、DEC twos/unsigned/ones、HEX F3=0/1でraw1 | DEC=-1/255/-0、HEX=1/01。端数幅・Floatの受入例は単位06参照 | §4.12; TBD-018 |
 | TEST-044 | flags/暫定 | MULのKeep | W8 unsigned Y=2 X=3、Cを0/1、G=1で各実行 | X=6、Cは元の値、G=0（暫定） | §7.4; TBD-007 |
 | TEST-045 | 境界値/外部部分確認 | DIVとRMD | DEC Y=-7 X=3、twos、各独立 | DIV=-2,C=1。RMD=-1、符号はSRC-07。RMD flagsは暫定 | §7.2/7.4; TBD-007 |
 | TEST-046 | 境界値/暫定 | 最小値/-1 | W8 twos Y=80 X=FF | DIV X=80,C=0,G=1、panicなし（暫定） | §7.4; TBD-007 |
@@ -758,7 +764,7 @@ keysは引用符内の命令名と数字片を展開し、`digit:X`、`.`、`eex
 | TEST-055 | flags | 番号と領域独立 | sf0..5、cf4、apply(C=Set,G=Keep)、index6 | F0..3不変、F4=1、F5保持、6はInvalidFlag | §4.10 |
 | TEST-056 | CLI/暫定 | REPLキーと不完全入力 | float、keys 1 eex、stack、keys CLx、exit | 1eを編集中表示、CLxで復帰、終了0（表示細部暫定） | §6/9; TBD-017 |
 | TEST-057 | 境界値 | u64最大乗算 | W64 unsigned (2^64−1)^2 | raw1、G=1、Carry保持（flagsは暫定）、中間overflowなし | §7.1/7.4; TBD-007 |
-| TEST-058 | 境界値/暫定 | 1補数の負のゼロ | W8 ones、FF*01、00−01、除数FF | MUL FF、SUB FE（暫定）、除数FFはDivisionByZero | §7.2; TBD-008 |
+| TEST-058 | 製品受入 | 1補数の負のゼロ | W8 ones、FF*01、00−01、除数FF | MULは既定00、oneszero raw後FF、oneszero canonical後00。SUBは両方式FE、除数FFはDivisionByZero | §7.2; TBD-008 |
 | TEST-059 | 境界値/暫定 | SQRT | W64 unsigned最大値、16、負値−1 | 4294967295/C1、4/C0、DomainError（flags暫定） | §7.2/7.4; TBD-007 |
 | TEST-060 | CLI | 構文と未対応 | 式 5 unknownword、式 5 dblmul | 未知語:行未実行/終了2。dblmul:5成功後未対応/終了1 | §9.3; TBD-014 |
 | TEST-061 | 結合 | 設定・リセット | register_count0/1025、Float+HEX、生成後設定変更→reset | 不正生成を拒否。resetは生成時設定/全値0/F0..5=0/I_D | §3.2/4.2 |
@@ -767,12 +773,12 @@ keysは引用符内の命令名と数字片を展開し、`digit:X`、`.`、`eex
 | TEST-064 | CLI/製品仕様 | 外部スクリプト自動化 | 外部からCLIを複数起動し式・設定を明示、正常/失敗を判定 | 同一プロセス内のみ状態継続、別起動は初期状態、stdout/stderrと終了コードを分離。内蔵プログラムAPIなし | SPEC-PROGRAM; §4.14; SRC-10 |
 | TEST-065 | HP互換/保留 | 未検証命令と特殊状態 | TBD-001～015/017～020に対応する実機操作列 | 期待値はTBD、実機/Handbook照合後に登録。暫定値を転記しない | SPEC-STACK/INT/ADV; 第11章 |
 | TEST-066 | HP互換/部分確認 | Handbook DIV/RMD | SRC-07、符号付きY=−7 X=3、Y=6 X=3 | DIV余り有C1/無C0、RMD非0符号はY。全スタック等の実機期待値はTBD | SRC-07; TBD-003/007 |
-| TEST-067 | HP互換/保留 | 浮動小数点精度差 | 0.1+0.2、極大/極小、実機代表例 | f64自己試験は実施。実機比較の許容誤差はTBD-016、未設定で合格にしない | SPEC-FLOAT; TBD-016 |
+| TEST-067 | 製品受入 | f64の精度・範囲 | 0.1+0.2、最小正規数÷2、最大有限値×2 | 順に0.30000000000000004、有限のsubnormal、FloatingPointOutOfRange | SPEC-FLOAT; TBD-016 |
 | TEST-068 | flags/外部確認 | RMDフラグ保持 | W8 twos Y=7,X=4、C/Gを各0/1で独立実行 | X=3、C/Gとも実行前と同じ、L=4、Drop | SRC-08 p.98/100 |
 | TEST-069 | 状態遷移/外部確認 | Idle BSP | X=5、L=7、Lift E/D、IdleでBackspace | X=0、L=7、Idle/D。他段/flags保持 | SRC-08 p.25/99 |
 | TEST-070 | 状態遷移/外部確認 | Float編集CHS | Floatでkeys 5 CHS、L=7 | X=-5、編集中、L=7、Lift保持。続く2は-52 | SRC-08 p.99/100; 編集細部TBD-017 |
 | TEST-071 | HP互換/将来受入 | 記憶領域再配置 | W16 R0=1234h,R1=5678h、WSIZE32→RCL0、WSIZE16→RCL0/1 | W32 R0=56781234h、元幅で1234h/5678h。現在のVec<Number>では満たさないため未実装 | SRC-08 p.67; TBD-004 |
-| TEST-072 | HP互換/将来受入 | HP FLOAT変換 | Integer Y=25E47h,X=0でFLOAT | X=155207.0、Y/Z/T/L=0、W56、Lift E。独自SetNumericModeをこの期待値で試験しない | SRC-08 p.57; TBD-006 |
+| TEST-072 | 製品対象外/参照 | HP FLOAT変換 | Integer Y=25E47h,X=0でFLOAT | X=155207.0、Y/Z/T/L=0、W56、Lift E。独自SetNumericModeをこの期待値で試験しない | SRC-08 p.57; TBD-006 |
 | TEST-073 | 単体/外部確認 | ABS | W8 twos X=FB / 80、Unsigned X=FB | twos FB→05、80→80/G1、Unsigned FB保持。C保持、L=実行前X | SRC-08 p.44/98/100 |
 
 ### 10.2 網羅条件と実行方法
@@ -783,7 +789,7 @@ keysは引用符内の命令名と数字片を展開し、`digit:X`、`.`、`eex
 - 失敗試験はXだけでなく各層の全Snapshotを比較。セッションでは内部EntryPart、CLI submitではpendingも比較。Floatは必要ならto_bitsで符号付きゼロを確認する。
 - 公開APIの結合試験はCoreがcrates/rdp-core/tests、セッションがcrates/rdp-input/tests。private関数の単体試験は各所有モジュール内。CLIはstdin/stdout/stderrと終了コードを検査する。
 - `cargo test --workspace`で全体、`cargo test -p rdp-core`でコア、`cargo test -p rdp-input`でセッション、`cargo test -p rdp-cli`でCLI（実装後の実行方法）。必要な互換fixtureには資料版、印刷ページ、設定、操作列、期待状態、TBD解決日を持たせる。
-- f64の演算結果は単純な正確値を除き、独立した参照値と絶対/相対許容誤差をケース別に持たせる。実機比較の許容値はTBD-016。NaNに対して通常のPartialEqを使わない。
+- f64の演算結果は単純な正確値を除き、独立した参照値と絶対/相対許容誤差をケース別に持たせる。TBD-016により精度・範囲の基準はf64とする。NaNに対して通常のPartialEqを使わない。
 
 ### 10.3 先行テストとの対応
 
@@ -804,14 +810,14 @@ keysは引用符内の命令名と数字片を展開し、`digit:X`、`.`、`eex
 
 | TBD-ID | 状態 | 内容 | 関連モジュール | 現在の暫定仕様 | 確認方法 | 確定条件 | 優先度 | 判断の期限・実装への影響 |
 |---|---|---|---|---|---|---|---|---|
-| TBD-001 | Partial | ENTER/CLx、初期Lift、基数変更の特殊履歴 | calculator,input | ENTER/CLxはD、基数変更は入力終了かつLift中立、BSP IdleはCLx相当を確定。起動Liftは独自Dを継続 | 原版p.25/99/100。通常キー遷移は確定、電源投入・reset後の実機Liftだけ未確認 | Resolvedは仕様確定。Partialは右記の残件を継続。詳細は照合記録 | High | 2026-10-25確認。残件の判断前に完全互換と扱わない |
+| TBD-001 | Resolved | 起動・リセット直後のLift | calculator,input | Disabled。初回入力はXを置換。ENTER/CLxはD、基数変更は中立、Idle BSPはCLx相当 | TEST-020～023/026/069 | 製品の初期状態と入力遷移を検証 | High | 2026-11-21確定 |
 | TBD-002 | Resolved | CHSのEditing/Idle別効果とSRC-03内の矛盾 | calculator,input,arithmetic | Integerは入力終了・補数演算・SaveX・Lift E。Float Editingは符号編集/Keep、Idleは符号反転/Keep/E | 原版p.44/99/100。モード別分類を確定。UnsignedゼロのG条件はTBD-007、編集細部は017へ分離 | Resolvedは仕様確定。Partialは右記の残件を継続。詳細は照合記録 | High | 2026-10-25確認。実装時に文書期待値を検証する |
 | TBD-003 | Resolved | LAST X対象命令の完全な分類 | calculator,command | §5.2.1で現Command全件をSave/Keep/Clearへ分類。Float CHSはKeep。HP FLOATはClear、WSIZEはSave | 原版p.100の一覧を全件照合。独自APIの契約は明示分離。TEST-034/035/070ほか | Resolvedは仕様確定。Partialは右記の残件を継続。詳細は照合記録 | High | 2026-10-25確認。実装時に文書期待値を検証する |
 | TBD-004 | Partial | ワード長変更の各領域の変換 | state,word,register | スタック縮小は低位保持、拡大はゼロ拡張。実機記憶領域はraw保存・境界再配置。現Vecは未対応 | 原版p.32/67。RegisterBank再設計、LAST X幅変換、HP WSIZE Commandの追加が残る | Resolvedは仕様確定。Partialは右記の残件を継続。詳細は照合記録 | High | 2026-10-25確認。残件の判断前に完全互換と扱わない |
 | TBD-005 | Resolved | 補数形式変更時の値とflags | state,word | Integerの全形式間でraw保持、数学値だけ再解釈。flags/Lift保持、LAST X履歴保存なし | 原版p.35/98～100、TEST-041。±0はビット列を保持。Float中の設定変更はTBD-006へ分離 | Resolvedは仕様確定。Partialは右記の残件を継続。詳細は照合記録 | Medium | 2026-10-25確認。実装時に文書期待値を検証する |
-| TBD-006 | Partial | 整数/Float切替・LAST X・記憶領域 | state,number,calculator | HP FLOATはX=Y×2^X、Y/Z/T/L=0、W56、Lift E、記憶領域を数値変換しない。厳密全値変換とは異なる | 原版p.56/57。f64要件下の変換API分離・領域保存方式・逆変換の丸めを決定する | Resolvedは仕様確定。Partialは右記の残件を継続。詳細は照合記録 | High | 2026-10-25確認。残件の判断前に完全互換と扱わない |
+| TBD-006 | Resolved | 整数/Float切替 | state,number,calculator | f64優先。全4段・LAST X・全Riを厳密変換。丸めによる情報欠落時は全状態を保持して失敗 | TEST-042、IA-C010、SI-T056 | 相互変換・負0・原子性を検証。HP FLOATは製品対象外 | High | 2026-11-21確定 |
 | TBD-007 | Partial | 全命令のF4/F5更新規則 | flags,arithmetic,bitwise,calculator | Appendix A更新対象分類を確定。RMDはC/G Keep。Float四則は実機でG更新 | 原版p.44/98。1補数境界、Unsigned CHS(0)、独自f64とGの統合方針が残る | Resolvedは仕様確定。Partialは右記の残件を継続。詳細は照合記録 | High | 2026-10-25確認。残件の判断前に完全互換と扱わない |
-| TBD-008 | Open | 1補数の±0・範囲外結果・循環Borrow | word,arithmetic | raw保持、循環Carry/Borrow、MUL/DIVゼロ符号XOR、RMDゼロ符号Y | Section 4と小幅全組合せの実機/検証済み参照比較 | W=1、±0、範囲外を含むビット期待値確定 | High | 1補数互換実装前。Unsigned/2補数は先行可 |
+| TBD-008 | Resolved | 1の補数の算術結果とゼロ表現 | word,arithmetic,command,CLI | 既定は算術結果の±0を+0に統一。oneszero rawで演算式のゼロ符号を保持 | TEST-018/058、W1～4の全組合せ | 2方式の結果・フラグ・切替を製品仕様で検証 | High | 2026-11-21確定 |
 | TBD-009 | Resolved | ASR、n回転、回数0/負/幅以上、Carry | bitwise,calculator | ASRはUnsignedでSR同等。n=abs(X)、通常0..W/Carry0..W+1、Y対象、Drop、元X保存、0回C保持 | 原版p.47/49/97/98/100。0回は0回反復と分類から導出、実機未観測。TEST-050/051/063 | Resolvedは仕様確定。Partialは右記の残件を継続。詳細は照合記録 | High | 2026-10-25確認。実装時に文書期待値を検証する |
 | TBD-010 | Partial | MASKL/MASKR/SB/CB/B?のキー意味と配置 | bitwise,command | HP MASKはabs(X)の単項置換、SB/CBはY対象・abs(X)番号・Drop。B?の条件スキップは対象外 | 原版p.50/51/97/100。独自引数APIとHP Commandを分離する設計が残る | Resolvedは仕様確定。Partialは右記の残件を継続。詳細は照合記録 | Medium | 2026-10-25確認。残件の判断前に完全互換と扱わない |
 | TBD-011 | Partial | STO/RCLリフト、レジスタ数/番号 | register,calculator | STOは値保存でLift E、RCLは旧Liftに従い条件Lift後E、いずれもLAST X Keep | 原版p.25/99/100。固定16個・最大1024の独自規則と実機の番号/記憶領域境界との差が残る | Resolvedは仕様確定。Partialは右記の残件を継続。詳細は照合記録 | Medium | 2026-10-25確認。残件の判断前に完全互換と扱わない |
@@ -819,17 +825,17 @@ keysは引用符内の命令名と数字片を展開し、`digit:X`、`.`、`eex
 | TBD-013 | Partial | CLI超過入力とHPキー境界の分離 | cli,rdp-input | CLI部分Resolved（CP-01）。HPキーは厳密拒否を暫定維持、W≤3初回例外等は未採用 | IA §2、SI-H001/002/008、既存H32記録 | HP初回/継続桁・DEC符号bit・flags/Liftを確認 | High | HP互換キー入力ゲート。CLI正規化は実装可 |
 | TBD-014 | Partial | LJ、DBL×/DBL÷/DBLR、実機WSIZE | arithmetic,calculator,command | HP WSIZE: abs(X)、0→64、Drop、元X保存。LJ非0: 左寄せ値をY、移動数をX、C/G Keep | 原版p.32/47/98/100。LJ(0)、DBL全結果配置/境界、HP WSIZEの実装APIを残す | Resolvedは仕様確定。Partialは右記の残件を継続。詳細は照合記録 | Medium | 2026-10-25確認。残件の判断前に完全互換と扱わない |
 | TBD-015 | Resolved | プログラム記録・分岐・制限・実行API | CLI,docs | 対象外として確定。ProgramEngine等の候補型/APIを削除。自動化は外部スクリプト→CLI | ユーザー方針SRC-10。TEST-064を外部CLI自動化へ変更。HPプログラム互換試験は不要 | Resolvedは仕様確定。Partialは右記の残件を継続。詳細は照合記録 | Low | 2026-10-25確認。実装時に文書期待値を検証する |
-| TBD-016 | Open | f64と実機の精度・範囲・flags差の受容 | arithmetic,format | 有限f64、非有限拒否、subnormal受理、flags Keep | 実機代表例とf64の比較、用途別許容誤差レビュー | 対象例別の許容誤差と非互換一覧を承認 | Medium | f64基本演算は先行可。互換評価前必須 |
+| TBD-016 | Resolved | Floatの精度・数値範囲 | arithmetic,format | Rustのf64を基準とする。有限のsubnormalを受理し、非有限値は拒否 | TEST-067 | HP-16Cとの精度・範囲の一致は要求しない。フラグはTBD-007で扱う | Medium | 2026-11-21 製品判断 |
 | TBD-017 | Partial | 浮動小数点編集・Backspace・指数符号 | input | Float CHSは編集継続・LAST X Keep、BSP IdleはCLx相当へ修正 | 原版p.25/99/100。仮数/指数の削除境界と入力中最終桁削除の全状態が残る | Resolvedは仕様確定。Partialは右記の残件を継続。詳細は照合記録 | Medium | 2026-10-25確認。残件の判断前に完全互換と扱わない |
-| TBD-018 | Open | 表示桁・ゼロ埋め・実機表示窓 | format,CLI | F3で非DEC整数0詰め、Float最短往復表現、表示窓なし | 表示節、Wが桁数で割切れない場合の実機比較 | F3適用外を含む全基数の表示例確定 | Low | 基本CLIは先行可。表示互換判定前必須 |
-| TBD-019 | Open | レジスタ演算、Iレジスタ、間接指定 | register,command | 未対応、直接STO/RCLのみ | Storage/Program節と対象機能レビュー | 命令集合・番号規則・flags・スタック影響確定 | Medium | 第2段階の追加機能実装前 |
+| TBD-018 | Resolved | 表示桁・ゼロ埋め | format,CLI | 非DEC整数はraw、F3で幅に合わせてゼロ埋め。DECは数学値、Floatは最短往復表現。表示窓なし | TEST-043 | 全基数・端数幅・負0・Float往復を検証 | Low | 2026-11-21確定 |
+| TBD-019 | Resolved | レジスタ命令の対応範囲 | register,command | 直接指定のSTO/RCLのみ | 命令表と直接STO/RCLの受入試験 | レジスタ演算・Iレジスタ・間接指定は対象外。記憶領域と番号体系はTBD-011で扱う | Medium | 2026-11-21 製品判断 |
 | TBD-020 | Partial | HP-16C機能全体の到達範囲 | command,docs | 内蔵プログラミングを対象外、ABSをHP標準へ訂正。外部CLI自動化を正式用途とする | SRC-10/原版p.44。非プログラム命令の必須/将来/対象外の完全な棚卸しは継続 | Resolvedは仕様確定。Partialは右記の残件を継続。詳細は照合記録 | Medium | 2026-10-25確認。残件の判断前に完全互換と扱わない |
 | TBD-021 | Resolved | Float BSで符号だけ残る境界 | rdp-input | 正0へ正規化し編集・Liftを保持 | DD-049、IA-G012（SI-H003） | 製品動作確定。実機照合は017 | High | 2026-11-21確定 |
 | TBD-022 | Resolved | エラー優先順位とvariant | core,rdp-input,cli | CP-03、IA §4の順位・依存ガード・型分離を採用 | IAとIA-C/IA-G試験 | 設計確定。実装時variant/payloadと全状態を検査 | Medium | 複合原因試験を必須化。実機番号は012に残る |
 
 ### 11.1 APIへの影響
 
-TBD-004/006の記憶領域とモード切替はデータ構造の変更を要する可能性がある。その他の残件は原則として現在のCommand、純粋演算関数、メタデータの内部ルールを変更して対応する。例外としてTBD-010/014/019は実機特有のオペランド配置や間接指定を表す新Commandが必要になる。TBD-015は対象外としてClosed。TBD-020で追加命令を発見した場合は対象範囲とAPIを更新する。
+TBD-004の記憶領域はデータ構造の変更を要する可能性がある。その他の残件は原則として現在のCommand、純粋演算関数、メタデータの内部ルールを変更して対応する。例外としてTBD-010/014は実機特有のオペランド配置を表す新Commandが必要になる。TBD-015は対象外としてClosed。TBD-020で追加命令を発見した場合は対象範囲とAPIを更新する。
 
 ## 第12章：実装順序
 
@@ -838,14 +844,14 @@ TBD-004/006の記憶領域とモード切替はデータ構造の変更を要す
 | 0 | docs、Workspace、公開境界 | rdp-core・rdp-input・rdp-cliの3クレート構成、CLI→Core、CLI/GUI→rdp-input→Core | なし | CoreがStackLift、HpInputSessionがEntryPhase/buffer/partを所有する設計と一致 | 文書整合チェック、試験移設先の確認 | CP-01～03の設計確定とHP残件を区別 |
 | 1 | config、error、word、number、flags | 安全な値型・幅・変換・更新指示 | 0 | 無効幅/型をResultで拒否、64bit境界安全 | 001～009、055 | 008のraw負ゼロ表現は保持 |
 | 2 | stack、register、state | 固定段操作、初期状態、Snapshot | 1 | 4段/全領域の不変条件を保証 | 010～014、031、061 | 011の個数は暫定16で進められる |
-| 3 | arithmetic | Unsigned/2補数四則、純粋評価、sqrt | 1 | 境界・ゼロ除算・通常overflowを区別 | 015～019、044～046、057、059 | 007のflagsは暫定表、008の1補数は別レビュー |
+| 3 | arithmetic | Unsigned/2補数四則、純粋評価、sqrt | 1 | 境界・ゼロ除算・通常overflowを区別 | 015～019、044～046、057、059 | 007のflagsは暫定表、008の1補数は両方式で検証 |
 | 4 | Core format、rdp-input編集器/finish、CLI parse_literal | 表示・CLI数値解析・HPキー編集の単体作業を分離 | 1、設定snapshot利用は2 | CLI正規化とHP厳密拒否を別規則で検証。不正入力でbuffer保持。Core呼出しと協調原子性は段階5/8で統合 | TEST-032～038の単体部分（Floatは8）、TEST-043、IA-L001～016のparse単体 | TBD-013のHP部分、017/018/021を維持 |
 | 5 | Core calculator、rdp-input HpInputSession | 先にexecute/update_value/snapshot/test_bitを実装し、その後edit/finishとCore呼出し・候補セッション全体置換を統合 | 2/3、4の対象単体作業。セッション統合は本段階のCore API成立後 | 完成値Pushは条件lift後Enabled、初回Startは条件lift・Lift保持、継続/finishはReplaceXで再liftなし。厳密値検査、単発/セッション全体の原子性。execute_allは先行成功保持 | TEST-020～030/032～037/047/048/061の対応部分、IA-C001～008/011～014/016、IA-G001/003/006/008～010、SI-Tの基本Integerケース | Float/設定/bit依存試験は6/8まで完了扱いにしない。LAST Xは現行命令表に従う |
-| 6 | Core arithmetic/bitwise、セッション命令統合 | 1補数、論理、回転、引数式bit/mask | 1/3/5 | 暫定仕様試験と未確定HP試験を分離、引数順位と安全な前提ガードを実命令で検証 | TEST-018/049～052/058/063/068/073、対応SI-T、IA-C009/014/015の対応部分（Float競合は8） | 007/008/010の残件をレビュー、009の確定契約を維持 |
+| 6 | Core arithmetic/bitwise、セッション命令統合 | 1補数、論理、回転、引数式bit/mask | 1/3/5 | 暫定仕様試験と未確定HP試験を分離、引数順位と安全な前提ガードを実命令で検証 | TEST-018/049～052/058/063/068/073、対応SI-T、IA-C009/014/015の対応部分（Float競合は8） | 007/010の残件をレビュー、009の確定契約を維持 |
 | 7 | CLI識別、CliSession、REPL/Batch、I/O | 実行時設定でparse→Push。pendingはparse→Push→後続命令を候補上で一括実行、成功時のみ消去 | 4のparser、5のCore API/セッション統合、6の対象命令 | pending失敗時はCore/HP編集/pendingを全保持。通常トークン列は先行成功保持、行構文不正は実行前拒否。二重編集を拒否 | TEST-053/054/060/064、IA-L017～022、IA-G011、IA-L010/021の分類。FloatのTEST-056等は8で統合 | CLI契約は設計確定。HP残件を確定しない |
-| 8 | Core state/arithmetic/format、rdp-input Float編集、CLI統合 | Float・独自厳密切替・幅/補数変更。単体編集→対応Core API→旧設定でfinish後のセッション/CLI統合の順 | 2～7の対象基盤。統合は対応Core API実装後 | 全領域一括変換と失敗原子性、Float符号付きゼロ、part保持、独立条件順位と依存ガードを検証 | TEST-033/035/038～043/056/062/067/069/070、IA-C009/010/014/015のFloat/変換経路、IA-G002/004/005/007、SI-TのFloat/設定ケース、IA-L006/010/014/022のFloat統合 | 004/005/006/016/017/018を維持、IA-G012はTBD-021で保留 |
-| 9 | compatibility fixtures、docs | Handbook/実機照合、該当TBDの判断 | 5～8の対象機能 | 設計受入・実装試験・HP互換確認の到達点と非互換点を区別して公開 | TEST-065～067/071/072の該当範囲、SI-H保留群 | 不明な期待値は埋めない。保留を成功件数に算入しない |
-| 10 | register拡張、倍長/LJ | プログラミングを除く未対応命令の追加 | 9と該当詳細仕様 | 新命令ごとにAPI・状態・テスト確定 | 新規TEST-ID | 014/019/020。今回は実装対象外 |
+| 8 | Core state/arithmetic/format、rdp-input Float編集、CLI統合 | Float・独自厳密切替・幅/補数変更。単体編集→対応Core API→旧設定でfinish後のセッション/CLI統合の順 | 2～7の対象基盤。統合は対応Core API実装後 | 全領域一括変換と失敗原子性、Float符号付きゼロ、part保持、独立条件順位と依存ガードを検証 | TEST-033/035/038～043/056/062/067/069/070、IA-C009/010/014/015のFloat/変換経路、IA-G002/004/005/007、SI-TのFloat/設定ケース、IA-L006/010/014/022のFloat統合 | 004/017の残件を維持、IA-G012は製品受入 |
+| 9 | compatibility fixtures、docs | Handbook/実機照合、該当TBDの判断 | 5～8の対象機能 | 設計受入・実装試験・HP互換確認の到達点と非互換点を区別して公開 | TEST-065/066/071の該当範囲、SI-H保留群 | 不明な期待値は埋めない。保留を成功件数に算入しない |
+| 10 | 倍長/LJ | プログラミングを除く未対応命令の追加 | 9と該当詳細仕様 | 新命令ごとにAPI・状態・テスト確定 | 新規TEST-ID | 014/020。今回は実装対象外 |
 | 11 | rdp-gui | HpInputSessionへKey/Command入力、InputSnapshot表示。完成値はPush | 安定したCore APIとrdp-inputの対応機能・協調原子性検証 | 共通セッションと同じ操作列で同じ状態 | 該当SI-T/IA-Gシナリオ再利用（保留除外） | UI固有エラー解除は012 |
 
 ソースコードの実装はこの作業では行わない。各段階の「完了条件」は今後の実装時の受入条件であり、今回テスト実行済みという意味ではない。
@@ -858,7 +864,7 @@ TBD-004/006の記憶領域とモード切替はデータ構造の変更を要す
 - CP-03：段階5/6/8のIA-C006～011/014～016で到達可能な競合・対象順・前提ガードを検証する。アダプター競合は段階5/8のIA-G003～008、CLIの解析順位とCore未呼出しは段階4のIA-L012～015、段階7のIA-L019で確認する。構造引数・生成・確保経路の単一原因も試験仕様第9節に従う。
 - 原子性：段階5のCore単発とセッション全体、段階8の変換/Float統合を分けて検証する。CLI pendingの一括取消は段階7のIA-L018/019。通常トークン列IA-L020、Core::execute_allのIA-C013/TEST-048は先行成功保持であり、一括取消の代用にしない。全領域変換取消はIA-C010/SI-T056。
 - 既存TEST/SIのID・数値期待値は試験仕様第9節に従い維持する。TEST-020～038のキー操作、TEST-029/SI-T024はrdp-inputへ移設し、編集を知らないCoreのIA-C002と対比する。TEST-032のCLI 0xGのみIA-L012へ移す。TEST-043/053/054/056/060のCLI部分はIA-L群と対応し、Core formatは維持する。SI-T071/IA-G010とIA-C012は各snapshot所有層で検証する。重複ケースは旧IDを追跡タグとして保持し、実行済み件数を二重計上しない。
-- SI-T001～076はセッション統合試験として保持し、段階5/6/8で必要命令の実装後に検証する。SI-T032はInput(InvalidNumber)、SI-T056はCalculation(IntegerOutOfRange)。SI-H004は段階8のIA-G004へ移管済みで旧IDは追跡タグのみ。IA-G012/SI-H003とSI-H001/002/005～008はHP保留のまま、通常の完了・成功件数に算入しない。
+- SI-T001～076はセッション統合試験として保持し、段階5/6/8で必要命令の実装後に検証する。SI-T032はInput(InvalidNumber)、SI-T056はCalculation(IntegerOutOfRange)。SI-H004は段階8のIA-G004へ移管済みで旧IDは追跡タグのみ。IA-G012（旧SI-H003）は製品受入。SI-H005は製品対象外のHP参照例。SI-H001/002/006～008は実機照合まで保留する。
 - 失敗時は各層の全snapshot（セッションは内部part、CLI submitはpendingも含む）、成功時は4段/L/flags/設定/記憶/Liftを比較する。Floatはto_bits、Ones負0はraw比較。未実装の前提を持つ試験は後段への持越しを記録し、完了扱いにしない。
 
 ### 12.1 設計整合性の確認記録
@@ -875,4 +881,3 @@ TBD-004/006の記憶領域とモード切替はデータ構造の変更を要す
 10. 全TBDに管理行と確認方法・確定条件を用意し、別ファイルと同期した。
 
 文書内のMermaidは標準記法のみを用いる。確認の実施範囲と残る制約は設計判断記録の末尾に記す。
-

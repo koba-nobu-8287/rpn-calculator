@@ -13,7 +13,7 @@ Coreのconfig/error/flagsを扱う。[全体設計](../rdp-calc-detailed-design.
 | Radix | Binary/Octal/Decimal/Hexadecimal、base()は2/8/10/16 |
 | NumericMode | Integer/FloatingPoint |
 | SignedMode | Unsigned/OnesComplement/TwosComplement |
-| WordConfig | public size: WordSize、signed_mode: SignedMode |
+| WordConfig | public size: WordSize、signed_mode: SignedMode、ones_zero_mode: OnesZeroMode（Canonical / Raw、初期値Canonical） |
 | CalculatorConfig | public word_config、radix、numeric_mode、register_count |
 | StackLift | Enabled/Disabled、計算状態としてCoreが所有 |
 

@@ -46,12 +46,15 @@ I/Oは借用した標準traitで差し替え可能とし、グローバル端末
 
 ## 3. 起動・行構文
 
+`oneszero canonical`（B案・既定）と `oneszero raw`（A案）をREPL・ワンショットの共通コマンドとする。設定はセッション単位で保持し、以後の1の補数算術に適用する。切替自体はスタック、LAST X、レジスタ、フラグ、Liftを保持する。他の符号形式やFloatでも設定でき、1の補数へ戻ると適用される。
+
 式なしはREPL、式ありはワンショット。`--help`はmainの別経路で終了0。オプションは`--base {bin,oct,dec,hex}`、`--word-size N`、`--signed {unsigned,ones,twos}`、`--float`、`--register-count N`。Nは十進。欠落・重複矛盾・不正値はSyntax。Float基数未指定はDEC、明示非DECは拒否する。
 
 行は最大64KiB、数値はASCII、入出力文字コードはUTF-8。読み込みを上限+1までに抑え、超過分を改行まで捨ててLineTooLong。空行は無処理。ASCII空白でトークンを区切り、引用符外のトークン境界`#`以降はコメント。シェルコード実行機能は持たない。
 
 | トークン群 | 意味 |
 |---|---|
+| oneszero canonical/raw | SetOnesZeroModeへ変換。引数欠落はMissingArgument、不正値はInvalidArgument |
 | hex/dec/oct/bin、wsize N、signed unsigned/ones/twos、integer/float | 独自の直接設定API |
 | +、*、/、%、add/sub/mul/div/rmd、chs/abs/sqrt | 算術。通常CLIの単独-は数値正0 |
 | and/or/xor/not、sl/sr/asr/rl/rr/rlc/rrc、rln/rrn/rlcn/rrcn | 論理・シフト・回転 |
@@ -113,3 +116,5 @@ REPLはSyntax/Literal/Input/Calculationの診断後に次行を処理し、正�
 TEST-053/054/056/060/064、IA-L017～022、IA-G011。行構文失敗の全未実行、通常実行の先行成功保持、pending一括取消、現在基数での解析、終了コード、二重編集禁止、末尾e/e-拒否を検証する。入力解析失敗はCore呼出し0回。入出力失敗はIo=3。
 
 TBD-012/018のUI・表示互換を本単位で確定しない。HP内蔵プログラミングは対象外。未対応語として認識することは将来実装の約束ではない。
+
+`help` に `oneszero canonical|raw` を掲載する。受入例はW8・HEX・onesで `01 FE +` が `0`、`oneszero raw 01 FE +` が `FF`、続けて `oneszero canonical` を実行しても既存のXは `FF`。F3はClearとする。引数欠落・不正値では行全体の構文検査で失敗し、先行トークンも実行しない。
