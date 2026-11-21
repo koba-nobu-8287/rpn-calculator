@@ -4,7 +4,7 @@
 
 ## 1. 対象・根拠・依存
 
-Core calculator/commandの公開窓口、命令効果、原子性を規定する。[IA](../rdp-calc-input-api-design.md)§3・4、[全体設計](../rdp-calc-detailed-design.md)§3.4・4.2・5.2が基準。01～05に依存し、設定変換は12を呼ぶ。入力編集やfinishは09の責務であり、Core単独にはEditingという状態がない。
+Core calculator/commandの公開窓口、命令効果、原子性を規定する。[IA](../rpn-calc-input-api-design.md)§3・4、[全体設計](../rpn-calc-detailed-design.md)§3.4・4.2・5.2が基準。01～05に依存し、設定変換は12を呼ぶ。入力編集やfinishは09の責務であり、Core単独にはEditingという状態がない。
 
 ## 2. 公開API
 
@@ -114,4 +114,4 @@ execute_allはexecuteを順に呼び、最初のErrで停止する。先行成�
 
 IA-C001～016のうち当該命令実装済み部分、TEST-020～031/047/048/055/061を検証する。CoreのIA-C002ではInputInProgressが存在せず、セッションIA-G006では拒否されることを対比する。Enter後PushはLift E、Enter後Start/ReplaceXはD保持。失敗は全Snapshotで比較する。
 
-TBD-001/011に従い、初期LiftはDisabled、STO/RCL成功後はEnabled。現行の公開命令は§2、将来拡張・対象外の区分は[全体設計 §1.1](../rdp-calc-detailed-design.md)に従う。
+TBD-001/011に従い、初期LiftはDisabled、STO/RCL成功後はEnabled。現行の公開命令は§2、将来拡張・対象外の区分は[全体設計 §1.1](../rpn-calc-detailed-design.md)に従う。

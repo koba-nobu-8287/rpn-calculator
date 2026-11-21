@@ -4,7 +4,7 @@
 
 ## 1. 対象・根拠・依存
 
-Coreのstack/register/stateの保存構造、低水準操作、初期化、Snapshotを規定する。[全体設計](../rdp-calc-detailed-design.md)§3.2・4.4・4.6・4.11・5.1、[IA](../rdp-calc-input-api-design.md)§3が根拠。01/02に依存し、命令効果は07、設定変換は12へ委譲する。
+Coreのstack/register/stateの保存構造、低水準操作、初期化、Snapshotを規定する。[全体設計](../rpn-calc-detailed-design.md)§3.2・4.4・4.6・4.11・5.1、[IA](../rpn-calc-input-api-design.md)§3が根拠。01/02に依存し、命令効果は07、設定変換は12へ委譲する。
 
 ## 2. 所有と不変条件
 

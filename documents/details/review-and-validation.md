@@ -1,6 +1,6 @@
 # D-1.0 照合・再点検・検証記録
 
-以下は調査当時の記録。2026-11-22に全22件の製品判断が確定した。現行仕様と適用範囲は[TBD管理表](../rdp-calc-tbd-list.md)を参照する。
+以下は調査当時の記録。2026-11-22に全22件の製品判断が確定した。現行仕様と適用範囲は[TBD管理表](../rpn-calc-tbd-list.md)を参照する。
 
 
 確認日：2026-11-14（日本時間）。対象は00～13の14仕様書とREADME、関連する既存Markdown。
@@ -11,13 +11,13 @@
 
 | 資料 | 参照した契約・扱い |
 |---|---|
-| [全体設計v0.6](../rdp-calc-detailed-design.md) | 型、算術、命令効果、CLI、実装段階 |
-| [IA-1.0](../rdp-calc-input-api-design.md) | 入力所有・API、CP-01～03、エラー順位の正本 |
-| [SI-1.1](../rdp-calc-stack-input-detailed-design.md) | セッションの21状態遷移、編集・Liftの直交性 |
-| [試験仕様](../rdp-calc-stack-input-test-cases.md) | 元fixture、SI/IA追加ケース、層の移設、保留 |
-| [TBD管理表](../rdp-calc-tbd-list.md) | 現行22件、状態・暫定案・判断ゲート |
-| [設計判断記録](../rdp-calc-design-decisions.md) | DD-001～044の現行・置換・過去提案の区別、本作業のDD-045～048 |
-| [マニュアル照合記録](../rdp-calc-manual-review.md) | 過去のHP確認事実と残件。今回の実機観測とは扱わない |
+| [全体設計v0.6](../rpn-calc-detailed-design.md) | 型、算術、命令効果、CLI、実装段階 |
+| [IA-1.0](../rpn-calc-input-api-design.md) | 入力所有・API、CP-01～03、エラー順位の正本 |
+| [SI-1.1](../rpn-calc-stack-input-detailed-design.md) | セッションの21状態遷移、編集・Liftの直交性 |
+| [試験仕様](../rpn-calc-stack-input-test-cases.md) | 元fixture、SI/IA追加ケース、層の移設、保留 |
+| [TBD管理表](../rpn-calc-tbd-list.md) | 現行22件、状態・暫定案・判断ゲート |
+| [設計判断記録](../rpn-calc-design-decisions.md) | DD-001～044の現行・置換・過去提案の区別、本作業のDD-045～048 |
+| [マニュアル照合記録](../rpn-calc-manual-review.md) | 過去のHP確認事実と残件。今回の実機観測とは扱わない |
 
 既存文書の過去章に残るClosed表記・旧版集計・未承認提案は当時の記録として読む。現行TBD表とIAを優先し、過去記録から動作を再採用しない。外部リンク先や元添付PDFを今回再取得・再照合したとは主張しない。
 

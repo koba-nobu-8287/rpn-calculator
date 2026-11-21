@@ -4,7 +4,7 @@
 
 ## 1. 対象・根拠・依存
 
-Core stateの設定変更、全4段/LAST X/全Riの表現変換を規定する。[全体設計](../rdp-calc-detailed-design.md)§4.4・5.2・7.7、[SI](../rdp-calc-stack-input-detailed-design.md)§6.3、[IA](../rdp-calc-input-api-design.md)§3・4が基準。01～03に依存、07から呼出し、09は旧設定finishを先に行う。
+Core stateの設定変更、全4段/LAST X/全Riの表現変換を規定する。[全体設計](../rpn-calc-detailed-design.md)§4.4・5.2・7.7、[SI](../rpn-calc-stack-input-detailed-design.md)§6.3、[IA](../rpn-calc-input-api-design.md)§3・4が基準。01～03に依存、07から呼出し、09は旧設定finishを先に行う。
 
 ## 2. APIと対象領域
 

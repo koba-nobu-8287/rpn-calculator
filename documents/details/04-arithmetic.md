@@ -4,7 +4,7 @@
 
 ## 1. 対象・依存・根拠
 
-Core arithmeticの純粋評価を扱う。01のエラー・FlagUpdate、02の数値表現へ依存し、状態への反映は07が担当する。[全体設計](../rdp-calc-detailed-design.md)§4.8・7.1～7.4・7.7、[判断記録](../rdp-calc-design-decisions.md)DD-029/043が基準。CLIの負数解析は10の契約であり、CHS演算と混同しない。
+Core arithmeticの純粋評価を扱う。01のエラー・FlagUpdate、02の数値表現へ依存し、状態への反映は07が担当する。[全体設計](../rpn-calc-detailed-design.md)§4.8・7.1～7.4・7.7、[判断記録](../rpn-calc-design-decisions.md)DD-029/043が基準。CLIの負数解析は10の契約であり、CHS演算と混同しない。
 
 ## 2. 型・API
 

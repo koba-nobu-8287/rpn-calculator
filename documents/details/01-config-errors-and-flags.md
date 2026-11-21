@@ -4,7 +4,7 @@
 
 ## 1. 対象・根拠・依存
 
-Coreのconfig/error/flagsを扱う。[全体設計](../rdp-calc-detailed-design.md)§3.2～3.5・4.3・4.10・4.13、[IA](../rdp-calc-input-api-design.md)§4が根拠。入力・CLIのエラー型は各所有crateで定義するが、分類と順位を本書に集約する。前提は[00](00-workspace-and-boundaries.md)、幅と数値の検証は[02](02-word-and-number.md)。
+Coreのconfig/error/flagsを扱う。[全体設計](../rpn-calc-detailed-design.md)§3.2～3.5・4.3・4.10・4.13、[IA](../rpn-calc-input-api-design.md)§4が根拠。入力・CLIのエラー型は各所有crateで定義するが、分類と順位を本書に集約する。前提は[00](00-workspace-and-boundaries.md)、幅と数値の検証は[02](02-word-and-number.md)。
 
 ## 2. 設定型・初期値
 

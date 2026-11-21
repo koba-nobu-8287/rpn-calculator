@@ -1,10 +1,10 @@
 # 11 CLI構文・実行・入出力
 
-版：D-1.0 / 2026-11-14（日本時間）。コマンド識別と行実行は `rdp_cli::line::CliSession::run_line` で利用できる。`cargo run --bin rdp-calc -- --base dec "5 3 +"` でワンショット（標準出力は `8` と改行）、式を省略するとREPLで起動する。プロセス試験は `crates/rdp-cli/tests/process.rs` に配置する。
+版：D-1.0 / 2026-11-14（日本時間）。コマンド識別と行実行は `rpn_cli::line::CliSession::run_line` で利用できる。`cargo run --bin rpn-calc -- --base dec "5 3 +"` でワンショット（標準出力は `8` と改行）、式を省略するとREPLで起動する。プロセス試験は `crates/rpn-cli/tests/process.rs` に配置する。
 
 ## 1. 対象・根拠・依存
 
-rdp-cliのargs/parser/session/repl/batch/output/errorを規定する。[全体設計](../rdp-calc-detailed-design.md)第9章、[IA](../rdp-calc-input-api-design.md)§2～5が基準。06の表示、07のCore、09のセッション、10の数値解析を利用する。mainは起動・接続・診断・最終終了コードを決め、計算処理を持たない。
+rpn-cliのargs/parser/session/repl/batch/output/errorを規定する。[全体設計](../rpn-calc-detailed-design.md)第9章、[IA](../rpn-calc-input-api-design.md)§2～5が基準。06の表示、07のCore、09のセッション、10の数値解析を利用する。mainは起動・接続・診断・最終終了コードを決め、計算処理を持たない。
 
 ## 2. 所有・型・API
 

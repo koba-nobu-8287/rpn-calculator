@@ -4,7 +4,7 @@
 
 ## 1. 目的・適用範囲
 
-3クレートの配置、依存方向、公開境界、共通実装規約を定める。基準は[全体設計](../rdp-calc-detailed-design.md)第2章・第12章と[IA](../rdp-calc-input-api-design.md)§1・3。入力APIはIAを優先する。個別の演算・入力契約は01～12、全体受入は13に置く。
+3クレートの配置、依存方向、公開境界、共通実装規約を定める。基準は[全体設計](../rpn-calc-detailed-design.md)第2章・第12章と[IA](../rpn-calc-input-api-design.md)§1・3。入力APIはIAを優先する。個別の演算・入力契約は01～12、全体受入は13に置く。
 
 本シリーズはPC版の製品仕様を定める。HP実機資料は各仕様に明示した範囲で参照する。
 
@@ -12,22 +12,22 @@
 
 ```text
 Cargo.toml                       workspace
-crates/rdp-core/src/              計算ライブラリ
-crates/rdp-core/tests/            Core公開API試験
-crates/rdp-input/src/             キー編集・セッションライブラリ
-crates/rdp-input/tests/           入力公開API・協調原子性試験
-crates/rdp-cli/src/               CLIバイナリ
-crates/rdp-cli/tests/             CLIプロセス・入出力試験
+crates/rpn-core/src/              計算ライブラリ
+crates/rpn-core/tests/            Core公開API試験
+crates/rpn-input/src/             キー編集・セッションライブラリ
+crates/rpn-input/tests/           入力公開API・協調原子性試験
+crates/rpn-cli/src/               CLIバイナリ
+crates/rpn-cli/tests/             CLIプロセス・入出力試験
 tests/scenarios/                  共有シナリオデータ
 documents/details/               本シリーズ
 ```
 
-Cargo workspaceには `rdp-core`、`rdp-input`、`rdp-cli` があり、CLI実行名は `rdp-calc`。各クレートのeditionは2024。
+Cargo workspaceには `rpn-core`、`rpn-input`、`rpn-cli` があり、CLI実行名は `rpn-calc`。各クレートのeditionは2024。
 
 ```mermaid
 flowchart TD
-    CLI[rdp-cli] --> CORE[rdp-core]
-    CLI --> INPUT[rdp-input]
+    CLI[rpn-cli] --> CORE[rpn-core]
+    CLI --> INPUT[rpn-input]
     GUI[将来GUI] --> INPUT
     INPUT --> CORE
     API[外部ライブラリ利用者] --> CORE
@@ -70,4 +70,4 @@ Workspace化時は3クレートのビルド・試験が実行でき、Coreが入
 
 ## 6. 残件と境界
 
-現行命令・将来拡張・対象外の区分は[全体設計 §1.1](../rdp-calc-detailed-design.md)に従う。将来GUIは共通入力を使い、エラー通知をUI層で扱う。
+現行命令・将来拡張・対象外の区分は[全体設計 §1.1](../rpn-calc-detailed-design.md)に従う。将来GUIは共通入力を使い、エラー通知をUI層で扱う。
