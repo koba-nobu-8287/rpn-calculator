@@ -6,7 +6,7 @@
 
 ## 1. 対象・根拠・依存
 
-rdp-input内部のInputState、edit、finishを規定する。[SI](../rdp-calc-stack-input-detailed-design.md)§2・6、[IA](../rdp-calc-input-api-design.md)§3・4が根拠。01/02とCore Snapshotへ依存し、stack移動・Core呼出し・成功時置換は09が担当する。CLIの完成数値解析（10）を流用しない。
+rpn-input内部のInputState、edit、finishを規定する。[SI](../rpn-calc-stack-input-detailed-design.md)§2・6、[IA](../rpn-calc-input-api-design.md)§3・4が根拠。01/02とCore Snapshotへ依存し、stack移動・Core呼出し・成功時置換は09が担当する。CLIの完成数値解析（10）を流用しない。
 
 ## 2. 型・所有・API
 

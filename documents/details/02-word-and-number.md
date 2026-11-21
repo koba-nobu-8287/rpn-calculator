@@ -4,7 +4,7 @@
 
 ## 1. 対象・根拠
 
-Coreのword/number、値域、基本変換と検証を規定する。[全体設計](../rdp-calc-detailed-design.md)§3.3・4.7・7.1、[IA](../rdp-calc-input-api-design.md)§2～4が根拠。依存は[01](01-config-errors-and-flags.md)。全領域の設定切替は12、CLIの切り捨て解析は10、キーの厳密入力は08が担当する。
+Coreのword/number、値域、基本変換と検証を規定する。[全体設計](../rpn-calc-detailed-design.md)§3.3・4.7・7.1、[IA](../rpn-calc-input-api-design.md)§2～4が根拠。依存は[01](01-config-errors-and-flags.md)。全領域の設定切替は12、CLIの切り捨て解析は10、キーの厳密入力は08が担当する。
 
 ## 2. データ型・不変条件
 

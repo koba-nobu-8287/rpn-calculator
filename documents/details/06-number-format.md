@@ -4,7 +4,7 @@
 
 ## 1. 範囲・根拠・依存
 
-Core formatは数値1個の文字列表現を返す。[全体設計](../rdp-calc-detailed-design.md)§4.12・7.7、01/02に従う。CLIのラベル・行構成・改行・出力先は11の責務。文字列からのparse、HP表示窓、端末I/Oは本単位に含めない。
+Core formatは数値1個の文字列表現を返す。[全体設計](../rpn-calc-detailed-design.md)§4.12・7.7、01/02に従う。CLIのラベル・行構成・改行・出力先は11の責務。文字列からのparse、HP表示窓、端末I/Oは本単位に含めない。
 
 ```mermaid
 flowchart LR

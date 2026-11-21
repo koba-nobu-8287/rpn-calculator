@@ -1,0 +1,6 @@
+[package]
+name="rpn-input"
+version="0.1.0"
+edition="2024"
+[dependencies]
+rpn-core={path="../rpn-core"}

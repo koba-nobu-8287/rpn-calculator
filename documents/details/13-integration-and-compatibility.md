@@ -6,7 +6,7 @@
 
 ## 1. 目的・根拠
 
-00～12をまたぐ受入条件、既存ケースの継承、暫定・互換・保留の区分を定める。[全体設計](../rdp-calc-detailed-design.md)第10～12章、[試験仕様](../rdp-calc-stack-input-test-cases.md)第7～9節、[TBD一覧](../rdp-calc-tbd-list.md)、[照合記録](../rdp-calc-manual-review.md)が基準。各単位のテストはその単位と一緒に実装し、本書まで延期しない。
+00～12をまたぐ受入条件、既存ケースの継承、暫定・互換・保留の区分を定める。[全体設計](../rpn-calc-detailed-design.md)第10～12章、[試験仕様](../rpn-calc-stack-input-test-cases.md)第7～9節、[TBD一覧](../rpn-calc-tbd-list.md)、[照合記録](../rpn-calc-manual-review.md)が基準。各単位のテストはその単位と一緒に実装し、本書まで延期しない。
 
 ## 2. 試験配置・依存
 
@@ -25,7 +25,7 @@ flowchart TD
 
 この図は試験前提の関係。全機能が完成するまでCore基本試験を待つ意味ではない。Integer基本経路→bit/1補数→Float/設定変換と、実装済み部分から段階的に実施する。
 
-private状態の検査は所有モジュール内、Core公開試験はcrates/rdp-core/tests、セッション公開試験はcrates/rdp-input/tests、CLI試験はcrates/rdp-cli/tests。tests/scenariosは共有データ。各クレートの試験コマンドは`cargo test -p rdp-core`、`cargo test -p rdp-input`、`cargo test -p rdp-cli`。
+private状態の検査は所有モジュール内、Core公開試験はcrates/rpn-core/tests、セッション公開試験はcrates/rpn-input/tests、CLI試験はcrates/rpn-cli/tests。tests/scenariosは共有データ。各クレートの試験コマンドは`cargo test -p rpn-core`、`cargo test -p rpn-input`、`cargo test -p rpn-cli`。
 
 ## 3. 既存IDの継承・移設
 

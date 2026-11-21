@@ -6,7 +6,7 @@
 
 ## 1. 対象・根拠・依存
 
-rdp-inputのHpInputSessionが編集器08とCore07を協調更新する契約を定める。[IA](../rdp-calc-input-api-design.md)§3～5、[SI](../rdp-calc-stack-input-detailed-design.md)§5・10が正本。Calculatorの可変参照を外部へ出さず、Core＋InputStateを所有する。GUIも同じセッションを利用する。
+rpn-inputのHpInputSessionが編集器08とCore07を協調更新する契約を定める。[IA](../rpn-calc-input-api-design.md)§3～5、[SI](../rpn-calc-stack-input-detailed-design.md)§5・10が正本。Calculatorの可変参照を外部へ出さず、Core＋InputStateを所有する。GUIも同じセッションを利用する。
 
 ## 2. 公開API・Snapshot
 

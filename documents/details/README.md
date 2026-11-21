@@ -1,6 +1,6 @@
 # 実装単位の詳細設計
 
-実装単位の仕様書・詳細設計書をこのフォルダに格納する。D-1.0 / 2026-11-14（日本時間）。00～13の14本を作成済み。Core、HPキー入力、CLI数値解析・行実行は実装済み。`rdp-calc` は式引数を渡すとワンショット、式を省略するとREPLで起動する。番号は文書の識別・配列用で、実装順序を表さない。
+実装単位の仕様書・詳細設計書をこのフォルダに格納する。D-1.0 / 2026-11-14（日本時間）。00～13の14本を作成済み。Core、HPキー入力、CLI数値解析・行実行は実装済み。`rpn-calc` は式引数を渡すとワンショット、式を省略するとREPLで起動する。番号は文書の識別・配列用で、実装順序を表さない。
 
 既存資料との対応、再点検で修正した内容、検証結果・未確定境界は[検証記録](review-and-validation.md)を参照する。
 
@@ -12,9 +12,9 @@
 
 | クレート | 責務 |
 |---|---|
-| `rdp-core` | 数値、演算、4段スタック、LAST X、flags、レジスタ、設定、StackLift、完成値の受入れ |
-| `rdp-input` | HP形式のキー編集、EntryPhase・buffer・EntryPart、Coreと編集状態の協調更新 |
-| `rdp-cli` | CLI構文、数値トークン解析、pending、REPL・一括実行、入出力・終了コード |
+| `rpn-core` | 数値、演算、4段スタック、LAST X、flags、レジスタ、設定、StackLift、完成値の受入れ |
+| `rpn-input` | HP形式のキー編集、EntryPhase・buffer・EntryPart、Coreと編集状態の協調更新 |
+| `rpn-cli` | CLI構文、数値トークン解析、pending、REPL・一括実行、入出力・終了コード |
 
 依存方向はCLI→Core、CLI→入力処理→Core。Coreには文字列編集や端末処理を持ち込まない。将来GUIは共通の入力処理を利用する。
 
@@ -103,11 +103,11 @@ flowchart TD
 
 ## 既存資料との関係
 
-- [全体詳細設計 v0.6](../rdp-calc-detailed-design.md)：全体構成、演算契約、実装順序の基準。
-- [入力API設計 IA-1.0](../rdp-calc-input-api-design.md)：入力の所有・API、CLI変換、エラー順位の正本。旧記述より優先する。
-- [スタック・入力詳細設計 SI-1.1](../rdp-calc-stack-input-detailed-design.md)：キー状態遷移の基準。
-- [試験仕様](../rdp-calc-stack-input-test-cases.md)：既存ID・期待値・移設方針を引き継ぐ。
-- [未確定事項一覧](../rdp-calc-tbd-list.md)：TBDの管理表。各単位では該当IDと局所的な実装判断を参照する。
-- [設計判断記録](../rdp-calc-design-decisions.md)、[マニュアル照合記録](../rdp-calc-manual-review.md)：決定の経緯と根拠を参照する。
+- [全体詳細設計 v0.6](../rpn-calc-detailed-design.md)：全体構成、演算契約、実装順序の基準。
+- [入力API設計 IA-1.0](../rpn-calc-input-api-design.md)：入力の所有・API、CLI変換、エラー順位の正本。旧記述より優先する。
+- [スタック・入力詳細設計 SI-1.1](../rpn-calc-stack-input-detailed-design.md)：キー状態遷移の基準。
+- [試験仕様](../rpn-calc-stack-input-test-cases.md)：既存ID・期待値・移設方針を引き継ぐ。
+- [未確定事項一覧](../rpn-calc-tbd-list.md)：TBDの管理表。各単位では該当IDと局所的な実装判断を参照する。
+- [設計判断記録](../rpn-calc-design-decisions.md)、[マニュアル照合記録](../rpn-calc-manual-review.md)：決定の経緯と根拠を参照する。
 
 既存資料は `documents/` に維持する。実装単位への具体化によって既存の確定契約を暗黙に変更しない。契約を変更する場合は、関連する既存正本・TBD・判断記録・試験仕様も同期する。

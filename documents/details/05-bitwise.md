@@ -4,7 +4,7 @@
 
 ## 1. 対象・依存・根拠
 
-Core bitwiseの純粋関数を扱う。[全体設計](../rdp-calc-detailed-design.md)§4.9・7.4～7.6が根拠。01のflags/error、02のwordへ依存する。回数Xの解釈、stack drop、LAST X、Liftの反映は07が担当する。
+Core bitwiseの純粋関数を扱う。[全体設計](../rpn-calc-detailed-design.md)§4.9・7.4～7.6が根拠。01のflags/error、02のwordへ依存する。回数Xの解釈、stack drop、LAST X、Liftの反映は07が担当する。
 
 ## 2. 型と公開境界
 
