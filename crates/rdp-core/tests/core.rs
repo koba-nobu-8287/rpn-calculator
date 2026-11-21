@@ -290,11 +290,7 @@ fn exhaustive_small_integer_binary_operations() {
         let modulus = 1_i64 << width;
         let max = modulus - 1;
         let half = modulus / 2;
-        for mode in [
-            SignedMode::Unsigned,
-            SignedMode::TwosComplement,
-            SignedMode::OnesComplement,
-        ] {
+        for (mode, zero_mode) in [(SignedMode::Unsigned, OnesZeroMode::Canonical), (SignedMode::TwosComplement, OnesZeroMode::Canonical), (SignedMode::OnesComplement, OnesZeroMode::Raw), (SignedMode::OnesComplement, OnesZeroMode::Canonical)] {
             let ones = mode == SignedMode::OnesComplement;
             let signed = mode != SignedMode::Unsigned;
             let (min, limit) = if signed {
@@ -323,6 +319,7 @@ fn exhaustive_small_integer_binary_operations() {
                 for x in 0..=max {
                     let (a, b) = (value(y), value(x));
                     let mut calc = Calculator::with_config(config(width, mode)).unwrap();
+                    calc.execute(Command::SetOnesZeroMode(zero_mode)).unwrap();
                     calc.execute_all([
                         Command::Push(int(y as u64, width)),
                         Command::Push(int(x as u64, width)),
@@ -411,7 +408,8 @@ fn exhaustive_small_integer_binary_operations() {
                                     (math, result, carry)
                                 };
                             candidate.execute(command).unwrap();
-                            let context = (width, mode, y, x, command);
+                            let context = (width, mode, zero_mode, y, x, command);
+                            let result = if ones && zero_mode == OnesZeroMode::Canonical && result == max { 0 } else { result };
                             assert_eq!(raw(&candidate), result as u64, "{context:?}");
                             let snapshot = candidate.snapshot();
                             assert_eq!(snapshot.last_x, int(x as u64, width));
@@ -901,4 +899,38 @@ fn unary_arithmetic_and_float_subnormals() {
     .unwrap();
     assert_eq!(calc.snapshot().stack[0].as_float().unwrap().to_bits(), 0);
     assert_eq!(calc.snapshot().last_x, Number::Float(2.0));
+}
+
+#[test]
+fn oneszero_switch_preserves_state_and_reset_restores_creation_mode() {
+    use Command::*;
+    let mut initial = config(64, SignedMode::OnesComplement);
+    initial.word_config.ones_zero_mode = OnesZeroMode::Raw;
+    let mut calc = Calculator::with_config(initial).unwrap();
+    calc.execute_all([Push(int(1, 64)), Push(int(u64::MAX - 1, 64)), Add, Store(0), Enter]).unwrap();
+    assert_eq!(raw(&calc), u64::MAX);
+    let mut expected = calc.snapshot();
+    expected.word_config.ones_zero_mode = OnesZeroMode::Canonical;
+    calc.execute(SetOnesZeroMode(OnesZeroMode::Canonical)).unwrap();
+    assert_eq!(calc.snapshot(), expected);
+    calc.execute_all([Push(int(1, 64)), Push(int(u64::MAX - 1, 64)), Add]).unwrap();
+    assert_eq!(raw(&calc), 0);
+    calc.reset();
+    assert_eq!(calc.snapshot(), Calculator::with_config(initial).unwrap().snapshot());
+}
+
+#[test]
+fn oneszero_can_be_selected_in_float_and_unsigned_modes() {
+    use Command::*;
+    let mut calc = Calculator::new();
+    assert_eq!(calc.snapshot().word_config.ones_zero_mode, OnesZeroMode::Canonical);
+    calc.execute_all([SetNumericMode(NumericMode::FloatingPoint), SetOnesZeroMode(OnesZeroMode::Raw),
+        Push(Number::Float(-0.0)), Push(Number::Float(2.0)), Multiply]).unwrap();
+    assert_eq!(calc.snapshot().stack[0].as_float().unwrap().to_bits(), (-0.0_f64).to_bits());
+    calc.execute_all([ClearStack, SetNumericMode(NumericMode::Integer), SetSignedMode(SignedMode::Unsigned),
+        SetOnesZeroMode(OnesZeroMode::Canonical), Push(int(0xffff, 16)), Push(int(0, 16)), Add]).unwrap();
+    assert_eq!(raw(&calc), 0xffff);
+    calc.execute_all([SetOnesZeroMode(OnesZeroMode::Raw), SetSignedMode(SignedMode::OnesComplement),
+        Push(int(1, 16)), Push(int(0xfffe, 16)), Add]).unwrap();
+    assert_eq!(raw(&calc), 0xffff);
 }

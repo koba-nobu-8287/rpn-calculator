@@ -110,3 +110,35 @@ fn repl_syntax_error_executes_no_part_of_the_line() {
     assert_eq!(r.stdout, b"3\n5\n");
     assert!(!r.stderr.is_empty());
 }
+
+#[test]
+fn oneszero_batch_arithmetic_and_raw_transfers() {
+    for (expression, canonical, raw) in [
+        ("01 FE +", "0", "FF"),
+        ("FF 00 sub", "0", "FF"),
+        ("00 FE mul", "0", "FF"),
+        ("FE 02 div", "0", "FF"),
+        ("FB 02 rmd", "0", "FF"),
+        ("00 chs", "FF", "FF"),
+        ("00 not", "FF", "FF"),
+        ("FF sto 0 clx rcl 0", "FF", "FF"),
+        ("FF abs", "0", "0"),
+        ("FF sqrt", "0", "0"),
+        ("7F 01 +", "80", "80"),
+    ] {
+        for (prefix, expected) in [("", canonical), ("oneszero raw", raw)] {
+            let line = format!("hex wsize 8 signed ones {prefix} {expression}");
+            success(&[&line], b"", &format!("{expected}\n"));
+        }
+    }
+}
+
+#[test]
+fn oneszero_repl_persists_and_help_lists_both_modes() {
+    let result = run(&[], b"wsize 8 signed ones oneszero raw\n01 FE +\noneszero canonical\n01 FE +\nhelp\n");
+    assert_eq!(result.status.code(), Some(0));
+    assert!(result.stderr.is_empty());
+    let output = String::from_utf8(result.stdout).unwrap();
+    assert!(output.starts_with("0\nFF\nFF\n0\n"), "{output}");
+    assert!(output.contains("oneszero canonical|raw"), "{output}");
+}

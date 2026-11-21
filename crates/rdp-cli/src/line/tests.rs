@@ -227,3 +227,16 @@ fn queries_and_unsupported_words_are_distinct_from_unknown_syntax() {
         matches!(session().run_line("G",&mut Vec::new(),true),Err(LineError::Syntax(CliError::UnknownCommand(s))) if s=="G")
     );
 }
+
+#[test]
+fn oneszero_errors_leave_the_entire_line_unexecuted() {
+    for (line, expected) in [
+        ("1 oneszero", CliError::MissingArgument("oneszero".into())),
+        ("1 oneszero other", CliError::InvalidArgument("other".into())),
+    ] {
+        let mut s = session();
+        let before = s.snapshot();
+        assert!(matches!(s.run_line(line, &mut Vec::new(), true), Err(LineError::Syntax(actual)) if matches!((&actual, &expected), (CliError::MissingArgument(a), CliError::MissingArgument(b)) | (CliError::InvalidArgument(a), CliError::InvalidArgument(b)) if a == b)));
+        assert_eq!(s.snapshot(), before);
+    }
+}
