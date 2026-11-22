@@ -764,6 +764,7 @@ fn si_t071_independent_snapshot() {
         copy.calculator.stack[0] = word(99, 16);
         copy.calculator.flags = Flags::default();
         copy.input_buffer.as_mut().unwrap().clear();
+        copy.entry_part = EntryPart::Exponent;
         copy.calculator.registers[0] = word(99, 16);
         assert_ne!(copy, s.snapshot());
     });
@@ -839,4 +840,44 @@ fn si_t076_negate_minimum_integer() {
             .history(word(128, 8))
             .check(&s, result);
     }
+}
+
+#[test]
+fn idle_backspace_preserves_last_x_at_either_lift() {
+    for lift in [Enabled, Disabled] {
+        let initial = Fixture::integer([5, 2, 3, 4], 8, lift).history(word(7, 8));
+        let expected = Fixture::integer([0, 2, 3, 4], 8, Disabled).history(word(7, 8));
+        verify(initial, expected, |s| key(s, Key::Backspace));
+    }
+}
+
+#[test]
+fn editing_rejections_preserve_the_common_fixture() {
+    let integer = Fixture::integer([12, 5, 2, 3], 8, Enabled)
+        .editing("12")
+        .register(word(7, 8));
+    verify(integer.clone(), integer, |s| {
+        reject(
+            s,
+            InputEvent::Command(Push(word(3, 8))),
+            InputError::InputInProgress,
+        )
+    });
+    let zero = Fixture::integer([0, 5, 2, 3], 8, Enabled)
+        .editing("0")
+        .register(word(7, 8));
+    verify(zero.clone(), zero, |s| {
+        reject(s, InputEvent::Command(Divide), CalcError::DivisionByZero)
+    });
+    let float = Fixture::float([1., 5., 2., 3.], Disabled)
+        .editing("1e")
+        .register(Number::Float(7.));
+    verify(float.clone(), float, |s| {
+        reject(
+            s,
+            InputEvent::Command(SetRadix(Hexadecimal)),
+            CalcError::NumericModeMismatch,
+        );
+        reject(s, InputEvent::Command(Divide), InputError::IncompleteEntry);
+    });
 }

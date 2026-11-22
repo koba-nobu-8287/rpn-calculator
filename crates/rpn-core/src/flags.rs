@@ -79,3 +79,31 @@ impl Flags {
         self.bits & 0xc0 == 0
     }
 }
+
+#[cfg(test)]
+impl Flags {
+    pub(crate) fn with_invalid_upper_bit() -> Self {
+        Self { bits: 0x80 }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn arithmetic_flag_update_preserves_user_bits() {
+        let mut f = Flags::default();
+        for i in 0..6 {
+            f.set(i, true).unwrap();
+        }
+        f.set(4, false).unwrap();
+        assert!(!f.carry());
+        f.apply(FlagUpdate::from_conditions(Some(true), None));
+        for i in 0..6 {
+            assert_eq!(f.get(i), Ok(true));
+        }
+        let before = f;
+        assert_eq!(f.set(6, false), Err(CalcError::InvalidFlag(6)));
+        assert_eq!(f, before);
+    }
+}

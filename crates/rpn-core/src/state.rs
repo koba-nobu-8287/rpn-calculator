@@ -165,3 +165,33 @@ impl CalculatorState {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn conversion_visits_stack_history_then_registers_in_order() {
+        let mut state = CalculatorState::new(&CalculatorConfig {
+            register_count: 2,
+            ..Default::default()
+        })
+        .unwrap();
+        let n = |x| Number::Integer(Word::from_bits(x, state.word_config.size));
+        for value in [4, 3, 2, 1] {
+            state.stack.lift();
+            state.stack.set_x(n(value));
+        }
+        state.stack.set_last_x(n(5));
+        state.registers.set(0, n(6)).unwrap();
+        state.registers.set(1, n(7)).unwrap();
+        let expected = [1, 2, 3, 4, 5, 6, 7].map(n);
+        let mut seen = Vec::new();
+        state
+            .map_values(|v| {
+                seen.push(v);
+                Ok(v)
+            })
+            .unwrap();
+        assert_eq!(seen, expected);
+    }
+}

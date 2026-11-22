@@ -157,21 +157,19 @@ fn integer(n: i16) -> Number {
 enum FlagResult {
     Keep,
     Arithmetic(bool, bool),
+    KeepCarry(bool),
 }
 
 #[track_caller]
 fn verify(initial: State, expected: State, flags: FlagResult, apply: impl Fn(&mut HpInputSession)) {
-    let combinations: &[_] = match flags {
-        FlagResult::Keep => &[(false, false), (false, true), (true, false), (true, true)],
-        FlagResult::Arithmetic(_, _) => &[(true, true)],
-    };
-    for &(carry, overflow) in combinations {
+    for (carry, overflow) in [(false, false), (false, true), (true, false), (true, true)] {
         let mut session = initial.session(carry, overflow);
         initial.check(&session, carry, overflow);
         apply(&mut session);
         let (c, g) = match flags {
             FlagResult::Keep => (carry, overflow),
             FlagResult::Arithmetic(c, g) => (c, g),
+            FlagResult::KeepCarry(g) => (carry, g),
         };
         expected.check(&session, c, g);
     }
@@ -320,7 +318,7 @@ fn si_t011_absolute() {
     verify(
         State::new([-5, 2, 3, 4], Disabled),
         State::new([5, 2, 3, 4], Enabled).history(-5),
-        FlagResult::Arithmetic(true, false),
+        FlagResult::KeepCarry(false),
         |s| {
             command(s, Absolute);
         },
@@ -506,7 +504,7 @@ fn si_t025_digit_after_integer_chs() {
     verify(
         State::new([5, 2, 3, 4], Disabled).editing("5"),
         State::new([2, -5, 2, 3], Enabled).editing("2").history(5),
-        FlagResult::Arithmetic(true, false),
+        FlagResult::KeepCarry(false),
         |s| {
             s.apply(InputEvent::Key(Key::ChangeSign)).unwrap();
             digit(s, '2');
@@ -519,7 +517,7 @@ fn si_t026_repeated_integer_chs() {
     verify(
         State::new([5, 2, 3, 4], Enabled).editing("5"),
         State::new([5, 2, 3, 4], Enabled).history(-5),
-        FlagResult::Arithmetic(true, false),
+        FlagResult::KeepCarry(false),
         |s| {
             s.apply(InputEvent::Key(Key::ChangeSign)).unwrap();
             s.apply(InputEvent::Key(Key::ChangeSign)).unwrap();

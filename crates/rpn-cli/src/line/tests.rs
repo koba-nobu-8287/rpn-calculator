@@ -29,7 +29,7 @@ fn syntax_checks_the_entire_line() {
 }
 #[test]
 fn syntax_and_runtime_failures_have_different_commit_boundaries() {
-    for (line, want) in [("5 0 /", 0), ("5 0xG", 5), ("5 lj", 5)] {
+    for (line, want) in [("5 0 /", 0), ("5 0xG", 5), ("5 lj", 5), ("5 dblmul", 5)] {
         let mut s = session();
         let error = s.run_line(line, &mut Vec::new(), true).unwrap_err();
         assert!(matches!(
@@ -40,7 +40,7 @@ fn syntax_and_runtime_failures_have_different_commit_boundaries() {
                     LineError::Literal(LiteralError::InvalidDigit { .. })
                 )
                 | (
-                    "5 lj",
+                    "5 lj" | "5 dblmul",
                     LineError::Calculation(CalcError::UnsupportedOperation)
                 )
         ));
@@ -101,8 +101,12 @@ fn fixture() -> CliSession {
         })
         .unwrap(),
     );
-    s.run_line("9 chs clx 4 3 2 5 sto 0 sf 3", &mut Vec::new(), true)
-        .unwrap();
+    s.run_line(
+        "9 chs clx 7 sto 0 4 3 2 5 sf 0 sf 2 sf 4 sf 5",
+        &mut Vec::new(),
+        true,
+    )
+    .unwrap();
     s
 }
 #[test]
@@ -240,4 +244,195 @@ fn oneszero_errors_leave_the_entire_line_unexecuted() {
     assert!(matches!(s.run_line("1 oneszero other", &mut output, true),
         Err(LineError::Syntax(CliError::InvalidArgument(value))) if value == "other"));
     assert_eq!(s.snapshot(), before);
+}
+
+#[test]
+fn decimal_stack_sequences_from_reset() {
+    use rpn_core::StackLift::{Disabled, Enabled};
+    for (line, stack, last, lift, buffer) in [
+        ("keys \"5\"", [5, 0, 0, 0], 0, Disabled, Some("5")),
+        ("keys \"5 enter 3 +\"", [8, 0, 0, 0], 3, Enabled, None),
+        ("keys \"5 enter enter 3 +\"", [8, 5, 0, 0], 3, Enabled, None),
+        (
+            "keys \"5 enter clx 3\"",
+            [3, 5, 0, 0],
+            0,
+            Disabled,
+            Some("3"),
+        ),
+        ("keys \"5 enter 3 + 2 *\"", [16, 0, 0, 0], 2, Enabled, None),
+        ("keys \"5 enter 3 + lastx\"", [3, 8, 0, 0], 3, Enabled, None),
+        (
+            "keys \"1 enter 2 enter 3 enter 4 rolldown\"",
+            [3, 2, 1, 4],
+            0,
+            Enabled,
+            None,
+        ),
+        (
+            "keys \"5 enter\" hex keys \"3 +\"",
+            [8, 0, 0, 0],
+            3,
+            Enabled,
+            None,
+        ),
+        (
+            "keys \"5 enter 3 + clx 7\"",
+            [7, 0, 0, 0],
+            3,
+            Disabled,
+            Some("7"),
+        ),
+        ("5 3 +", [8, 0, 0, 0], 3, Enabled, None),
+        ("5 sto 0 clx rcl 0", [5, 0, 0, 0], 0, Enabled, None),
+        ("keys \"1 2 bs bs\"", [0, 0, 0, 0], 0, Disabled, Some("0")),
+    ] {
+        let mut s = session();
+        s.run_line("dec", &mut Vec::new(), true).unwrap();
+        let initial = s.snapshot().calculator;
+        assert_eq!(initial.stack_lift, Disabled);
+        s.run_line(line, &mut Vec::new(), true).unwrap();
+        let snap = s.snapshot();
+        let n = |x| Number::Integer(Word::from_bits(x, initial.word_config.size));
+        assert_eq!(snap.calculator.stack, stack.map(n), "{line}");
+        assert_eq!(snap.calculator.last_x, n(last), "{line}");
+        assert_eq!(snap.calculator.stack_lift, lift, "{line}");
+        assert_eq!(snap.input_buffer.as_deref(), buffer, "{line}");
+        assert_eq!(
+            snap.entry_phase,
+            if buffer.is_some() {
+                EntryPhase::Editing
+            } else {
+                EntryPhase::Idle
+            }
+        );
+        if line.contains("sto") {
+            assert_eq!(snap.calculator.registers[0], n(5));
+        }
+    }
+}
+
+#[test]
+fn editing_and_pending_cannot_commit_together() {
+    let mut s = fixture();
+    s.run_line("keys \"12\"", &mut Vec::new(), true).unwrap();
+    let before = s.snapshot();
+    assert!(s.pending.is_none());
+    assert!(matches!(
+        s.run_line("3", &mut Vec::new(), true),
+        Err(LineError::Input(InputError::InputInProgress))
+    ));
+    assert_eq!(s.snapshot(), before);
+    assert!(s.pending.is_none());
+    // A pre-staged token is also preserved when submit rejects the transition.
+    s.pending = Some("3".into());
+    assert!(matches!(
+        s.submit(None),
+        Err(LineError::Input(InputError::InputInProgress))
+    ));
+    assert_eq!(s.snapshot(), before);
+    assert_eq!(s.pending.as_deref(), Some("3"));
+}
+
+#[test]
+fn common_fixture_digit_edits_preserve_unrelated_state() {
+    for float in [false, true] {
+        let mut s = fixture();
+        if float {
+            s.run_line("float", &mut Vec::new(), true).unwrap();
+        }
+        let mut expected = s.snapshot();
+        let n = |x| {
+            if float {
+                Number::Float(x as f64)
+            } else {
+                Number::Integer(Word::from_bits(x as u64, WordSize::new(8).unwrap()))
+            }
+        };
+        expected.calculator.stack = [if float { -1 } else { 12 }, 5, 2, 3].map(n);
+        expected.entry_phase = EntryPhase::Editing;
+        expected.input_buffer = Some(if float { "-1" } else { "12" }.into());
+        let line = if float {
+            "keys \"1 2 chs bs\""
+        } else {
+            "keys \"1 2\""
+        };
+        s.run_line(line, &mut Vec::new(), true).unwrap();
+        assert_eq!(s.snapshot(), expected);
+    }
+}
+
+#[test]
+fn signed_history_and_exponent_entry() {
+    for float in [false, true] {
+        let mut s = session();
+        let setup = if float {
+            "float 7 abs clx"
+        } else {
+            "dec wsize 8 7 abs clx"
+        };
+        s.run_line(setup, &mut Vec::new(), true).unwrap();
+        s.run_line("5 chs", &mut Vec::new(), true).unwrap();
+        let snap = s.snapshot();
+        assert_eq!(snap.entry_phase, EntryPhase::Idle);
+        assert_eq!(snap.calculator.stack_lift, StackLift::Enabled);
+        if float {
+            assert_eq!(snap.calculator.stack[0], Number::Float(-5.));
+            assert_eq!(snap.calculator.last_x, Number::Float(7.));
+            s.run_line("clx keys \"5 chs\"", &mut Vec::new(), true)
+                .unwrap();
+            let edited = s.snapshot();
+            assert_eq!(edited.entry_phase, EntryPhase::Editing);
+            assert_eq!(edited.calculator.stack[0], Number::Float(-5.0));
+            assert_eq!(edited.calculator.stack_lift, StackLift::Disabled);
+            assert_eq!(edited.input_buffer.as_deref(), Some("-5"));
+            assert_eq!(edited.calculator.last_x, Number::Float(7.));
+            s.run_line("keys \"2\"", &mut Vec::new(), true).unwrap();
+            assert_eq!(s.snapshot().calculator.stack[0], Number::Float(-52.));
+        } else {
+            assert_eq!(snap.calculator.stack[0].as_integer().unwrap().bits(), 251);
+            assert_eq!(snap.calculator.last_x.as_integer().unwrap().bits(), 5);
+        }
+    }
+    let mut s = session();
+    s.run_line(
+        "float keys \"1 . 5 eex chs 2 enter\"",
+        &mut Vec::new(),
+        true,
+    )
+    .unwrap();
+    let snap = s.snapshot();
+    assert_eq!(snap.calculator.stack[..2], [Number::Float(0.015); 2]);
+    assert_eq!(snap.calculator.stack_lift, StackLift::Disabled);
+    assert_eq!(snap.entry_phase, EntryPhase::Idle);
+}
+
+#[test]
+fn integer_edit_completion_and_radix_neutrality() {
+    let mut s = session();
+    s.run_line("dec wsize 8 keys \"5\"", &mut Vec::new(), true)
+        .unwrap();
+    let before = s.snapshot();
+    assert!(matches!(
+        s.run_line("3", &mut Vec::new(), true),
+        Err(LineError::Input(InputError::InputInProgress))
+    ));
+    assert_eq!(s.snapshot(), before);
+    s.run_line("keys \"chs\"", &mut Vec::new(), true).unwrap();
+    let snap = s.snapshot();
+    assert_eq!(snap.entry_phase, EntryPhase::Idle);
+    assert!(snap.input_buffer.is_none());
+    assert_eq!(snap.calculator.stack_lift, StackLift::Enabled);
+    assert_eq!(snap.calculator.stack[0].as_integer().unwrap().bits(), 251);
+    assert_eq!(snap.calculator.last_x.as_integer().unwrap().bits(), 5);
+    s.run_line("keys \"2\"", &mut Vec::new(), true).unwrap();
+    let stack = s.snapshot().calculator.stack;
+    assert_eq!(stack[0].as_integer().unwrap().bits(), 2);
+    assert_eq!(stack[1].as_integer().unwrap().bits(), 251);
+    s.run_line("enter", &mut Vec::new(), true).unwrap();
+    let mut expected = s.snapshot();
+    assert_eq!(expected.calculator.stack_lift, StackLift::Disabled);
+    expected.calculator.radix = Radix::Hexadecimal;
+    s.run_line("hex", &mut Vec::new(), true).unwrap();
+    assert_eq!(s.snapshot(), expected);
 }

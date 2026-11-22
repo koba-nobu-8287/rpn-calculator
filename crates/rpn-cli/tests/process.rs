@@ -162,3 +162,81 @@ fn oneszero_repl_persists_and_help_lists_both_modes() {
     assert!(output.starts_with("0\nFF\nFF\n0\n"), "{output}");
     assert!(output.contains("oneszero canonical|raw"), "{output}");
 }
+
+#[test]
+fn sign_modes_control_decimal_display_and_zero_arithmetic() {
+    for (expression, expected) in [
+        ("signed twos 0xff dec", "-1"),
+        ("signed unsigned 0xff dec", "255"),
+        ("signed ones 0xff dec", "-0"),
+        ("hex 1 cf 3", "1"),
+        ("hex 1 sf 3", "01"),
+        ("signed ones FF 01 *", "0"),
+        ("signed ones oneszero raw FF 01 *", "FF"),
+        ("signed ones oneszero raw oneszero canonical FF 01 *", "0"),
+        ("signed ones 00 01 sub", "FE"),
+        ("signed ones oneszero raw 00 01 sub", "FE"),
+    ] {
+        success(
+            &["--word-size", "8", expression],
+            b"",
+            &format!("{expected}\n"),
+        );
+    }
+    for mode in ["canonical", "raw"] {
+        let expr = format!("signed ones oneszero {mode} 01 FF /");
+        let result = run(&["--word-size", "8", &expr], b"");
+        assert_eq!(result.status.code(), Some(1));
+        assert!(result.stdout.is_empty());
+        assert!(!result.stderr.is_empty());
+    }
+}
+
+#[test]
+fn decimal_literal_display_at_sign_boundaries() {
+    for (mode, cases) in [
+        (
+            "unsigned",
+            &[
+                ("0", "0"),
+                ("255", "255"),
+                ("256", "0"),
+                ("-1", "255"),
+                ("-256", "0"),
+            ][..],
+        ),
+        (
+            "twos",
+            &[
+                ("127", "127"),
+                ("128", "-128"),
+                ("-128", "-128"),
+                ("-129", "127"),
+            ],
+        ),
+        (
+            "ones",
+            &[
+                ("127", "127"),
+                ("128", "-127"),
+                ("-127", "-127"),
+                ("-128", "127"),
+            ],
+        ),
+    ] {
+        for &(token, display) in cases {
+            success(
+                &["--base", "dec", "--word-size", "8", "--signed", mode, token],
+                b"",
+                &format!("{display}\n"),
+            );
+        }
+    }
+    for (base, token, display) in [("hex", "-0d123", "85"), ("dec", "0x123", "35")] {
+        success(
+            &["--base", base, "--word-size", "8", token],
+            b"",
+            &format!("{display}\n"),
+        );
+    }
+}
