@@ -2,7 +2,23 @@ use crate::line::{CliError, CliSession, LineError, RunControl};
 use rpn_core::{Calculator, CalculatorConfig, NumericMode, Radix, SignedMode, WordSize};
 use std::io::{self, BufRead, Write};
 
-const USAGE: &str = "Usage: rpn-calc [--base bin|oct|dec|hex] [--word-size 1..64] [--signed unsigned|ones|twos] [--float] [--register-count 1..1024] [EXPRESSION]";
+const HELP: &str = "Usage: rpn-calc [OPTIONS] [EXPRESSION]
+       rpn-calc --help
+       rpn-calc --version
+
+  --base bin|oct|dec|hex    Set the input and display base (default: hex; float: dec).
+  --word-size N             Set the integer word size in bits (1..64; default: 16).
+  --signed unsigned|ones|twos
+                            Select unsigned, ones' complement or two's complement
+                            integers (default: twos).
+  --float                   Start in floating-point mode (f64, decimal only).
+  --register-count N        Set the number of storage registers (1..1024; default: 16).
+  --help                    Print this help and exit.
+  --version                 Print the product version and exit.
+
+Pass the complete RPN expression as one argument to print its result.
+Omit the expression to start an interactive session.";
+
 struct Options {
     config: CalculatorConfig,
     expression: Option<String>,
@@ -78,8 +94,11 @@ pub fn run(
     output: &mut impl Write,
     errors: &mut impl Write,
 ) -> Result<(), LineError> {
-    if args.len() == 1 && args[0] == "--help" {
-        writeln!(output, "{USAGE}")?;
+    if matches!(args.as_slice(), [arg] if arg == "--help" || arg == "--version") {
+        writeln!(output, "rpn-calc {}", rpn_core::PRODUCT_VERSION)?;
+        if args[0] == "--help" {
+            writeln!(output, "{HELP}")?;
+        }
     } else {
         let options = Options::parse(args)?;
         let mut session = CliSession::new(

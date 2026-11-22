@@ -1,5 +1,8 @@
 //! Calculation state, commands, and number formatting for the RPN calculator.
 
+/// Product version for display in user interfaces, including the revision number.
+pub const PRODUCT_VERSION: &str = concat!("v", env!("CARGO_PKG_VERSION"), ".0");
+
 mod arithmetic;
 mod bitwise;
 mod calculator;
