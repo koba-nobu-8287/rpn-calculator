@@ -107,8 +107,37 @@ fn invalid_utf8_reports_input_io_failure() {
 fn help_exits_without_reading_stdin() {
     let r = run(&["--help"], &[255]);
     assert_eq!(r.status.code(), Some(0));
-    assert!(String::from_utf8(r.stdout).unwrap().contains("--word-size"));
+    let help = String::from_utf8(r.stdout).unwrap();
+    assert_eq!(
+        help.lines().next(),
+        Some(format!("rpn-calc {}", rpn_core::PRODUCT_VERSION).as_str())
+    );
+    for option in [
+        "--base",
+        "--signed",
+        "--float",
+        "--register-count",
+        "--word-size",
+        "--help",
+        "--version",
+    ] {
+        assert!(
+            help.lines()
+                .any(|line| line.trim_start().starts_with(option)),
+            "missing {option}"
+        );
+    }
     assert!(r.stderr.is_empty());
+}
+
+#[test]
+fn version_exits_without_reading_stdin() {
+    assert_eq!(rpn_core::PRODUCT_VERSION, "v1.0.0.0");
+    success(
+        &["--version"],
+        &[255],
+        &format!("rpn-calc {}\n", rpn_core::PRODUCT_VERSION),
+    );
 }
 
 #[test]

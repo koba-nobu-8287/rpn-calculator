@@ -48,7 +48,7 @@ I/Oは借用した標準traitで差し替え可能とし、グローバル端末
 
 `oneszero canonical`（B案・既定）と `oneszero raw`（A案）をREPL・ワンショットの共通コマンドとする。設定はセッション単位で保持し、以後の1の補数算術に適用する。切替自体はスタック、LAST X、レジスタ、フラグ、Liftを保持する。他の符号形式やFloatでも設定でき、1の補数へ戻ると適用される。
 
-式なしはREPL、式ありはワンショット。`--help`はmainの別経路で終了0。オプションは`--base {bin,oct,dec,hex}`、`--word-size N`、`--signed {unsigned,ones,twos}`、`--float`、`--register-count N`。Nは十進。欠落・重複矛盾・不正値はSyntax。Float基数未指定はDEC、明示非DECは拒否する。
+式なしはREPL、式ありはワンショット。`--help` と `--version` はそれぞれ単独で指定する。標準入力を読まず、標準出力に表示して終了0。`--version` は `rpn-calc <製品バージョン>` と改行、`--help` は同じ先頭行に続けて使用法と各起動オプションの説明を表示する。オプションは`--base {bin,oct,dec,hex}`、`--word-size N`、`--signed {unsigned,ones,twos}`、`--float`、`--register-count N`。Nは十進。欠落・重複矛盾・不正値はSyntax。Float基数未指定はDEC、明示非DECは拒否する。
 
 行は最大64KiB、数値はASCII、入出力文字コードはUTF-8。読み込みを上限+1までに抑え、超過分を改行まで捨ててLineTooLong。空行は無処理。ASCII空白でトークンを区切り、引用符外のトークン境界`#`以降はコメント。シェルコード実行機能は持たない。
 
