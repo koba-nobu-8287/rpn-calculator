@@ -835,34 +835,39 @@ fn logic_shift_rotate_and_edit_command_effects() {
             }
         }
     }
-    for (mode, command, expected) in [
-        (SignedMode::TwosComplement, Command::ShiftLeft, 0x02),
-        (SignedMode::TwosComplement, Command::ShiftRight, 0x40),
-        (
-            SignedMode::TwosComplement,
-            Command::ShiftRightArithmetic,
-            0xc0,
-        ),
-        (SignedMode::Unsigned, Command::ShiftRightArithmetic, 0x40),
-        (SignedMode::TwosComplement, Command::RotateLeft, 0x03),
-        (SignedMode::TwosComplement, Command::RotateRight, 0xc0),
-        (SignedMode::TwosComplement, Command::RotateLeftCarry, 0x02),
-        (SignedMode::TwosComplement, Command::RotateRightCarry, 0x40),
-    ] {
-        let mut calc = Calculator::with_config(config(8, mode)).unwrap();
-        calc.execute_all([
-            Command::Push(n(0x81)),
-            Command::SetFlag {
-                index: 5,
-                value: true,
-            },
-            command,
-        ])
-        .unwrap();
-        assert_eq!(raw(&calc), expected, "{command:?}");
-        assert_eq!(calc.snapshot().last_x, n(0x81));
-        assert!(calc.snapshot().flags.carry());
-        assert!(calc.snapshot().flags.out_of_range());
+    for mode in [SignedMode::Unsigned, SignedMode::TwosComplement] {
+        let asr = if mode == SignedMode::Unsigned {
+            0x40
+        } else {
+            0xc0
+        };
+        for (command, expected) in [
+            (Command::ShiftLeft, 0x02),
+            (Command::ShiftRight, 0x40),
+            (Command::ShiftRightArithmetic, asr),
+            (Command::RotateLeft, 0x03),
+            (Command::RotateRight, 0xc0),
+            (Command::RotateLeftCarry, 0x02),
+            (Command::RotateRightCarry, 0x40),
+        ] {
+            for overflow in [false, true] {
+                let mut calc = Calculator::with_config(config(8, mode)).unwrap();
+                calc.execute_all([
+                    Command::Push(n(0x81)),
+                    Command::SetFlag {
+                        index: 5,
+                        value: overflow,
+                    },
+                    command,
+                ])
+                .unwrap();
+                let after = calc.snapshot();
+                assert_eq!(raw(&calc), expected, "{mode:?} {command:?}");
+                assert_eq!(after.last_x, n(0x81));
+                assert!(after.flags.carry());
+                assert_eq!(after.flags.out_of_range(), overflow);
+            }
+        }
     }
     let mut calc = Calculator::with_config(config(8, SignedMode::Unsigned)).unwrap();
     calc.execute(Command::MaskLeft(3)).unwrap();
@@ -1071,4 +1076,463 @@ fn oneszero_can_be_selected_in_float_and_unsigned_modes() {
     ])
     .unwrap();
     assert_eq!(raw(&calc), 0xffff);
+}
+
+#[test]
+fn documented_word_and_stack_boundaries() {
+    use Command::*;
+    use SignedMode::*;
+    assert_eq!(Word::from_bits(0x12a5, size(8)).bits(), 0xa5);
+    for (bits, mode, cases) in [
+        (
+            8,
+            TwosComplement,
+            &[(0x80, -128), (0xff, -1), (0x7f, 127)][..],
+        ),
+        (1, Unsigned, &[(0, 0), (1, 1)]),
+        (1, TwosComplement, &[(0, 0), (1, -1)]),
+        (1, OnesComplement, &[(0, 0), (1, 0)]),
+    ] {
+        for &(raw, expected) in cases {
+            let word = Word::from_bits(raw, size(bits));
+            let cfg = config(bits, mode).word_config;
+            assert_eq!(word.to_signed(&cfg), expected);
+            assert_eq!(
+                word.is_negative_zero(&cfg),
+                mode == OnesComplement && raw == 1
+            );
+        }
+    }
+    let mut c = Calculator::new();
+    c.execute(Add).unwrap();
+    assert_eq!(c.snapshot().stack, [int(0, 16); 4]);
+    expect_error(&mut c, Store(16), CalcError::InvalidRegister(16));
+    let mut c = Calculator::with_config(config(64, Unsigned)).unwrap();
+    c.execute(Push(int(u64::MAX, 64))).unwrap();
+    expect_error(
+        &mut c,
+        SetNumericMode(NumericMode::FloatingPoint),
+        CalcError::IntegerOutOfRange,
+    );
+    c.execute(SetWordSize(size(8))).unwrap();
+    c.execute(CountBits).unwrap();
+    assert_eq!(raw(&c), 8);
+}
+
+#[test]
+fn eight_bit_arithmetic_result_flags_and_history() {
+    use Command::*;
+    use SignedMode::*;
+    for (mode, y, x, op, result, new_c, new_g) in [
+        (Unsigned, 255, 1, Add, 0, Some(true), Some(true)),
+        (TwosComplement, 127, 1, Add, 128, Some(false), Some(true)),
+        (TwosComplement, 255, 255, Add, 254, Some(true), Some(false)),
+        (Unsigned, 2, 3, Multiply, 6, None, Some(false)),
+        (TwosComplement, 249, 3, Divide, 254, Some(true), Some(false)),
+        (TwosComplement, 249, 3, Remainder, 255, None, None),
+        (
+            TwosComplement,
+            128,
+            255,
+            Divide,
+            128,
+            Some(false),
+            Some(true),
+        ),
+        (TwosComplement, 7, 4, Remainder, 3, None, None),
+    ] {
+        for carry in [false, true] {
+            for overflow in [false, true] {
+                let mut calc = Calculator::with_config(config(8, mode)).unwrap();
+                calc.execute_all([
+                    Push(int(42, 8)),
+                    Push(int(y, 8)),
+                    Push(int(x, 8)),
+                    SetFlag {
+                        index: 4,
+                        value: carry,
+                    },
+                    SetFlag {
+                        index: 5,
+                        value: overflow,
+                    },
+                    op,
+                ])
+                .unwrap();
+                let s = calc.snapshot();
+                assert_eq!(s.stack, [result, 42, 0, 0].map(|v| int(v, 8)), "{op:?}");
+                assert_eq!(s.last_x, int(x, 8));
+                assert_eq!(s.flags.carry(), new_c.unwrap_or(carry));
+                assert_eq!(s.flags.out_of_range(), new_g.unwrap_or(overflow));
+            }
+        }
+    }
+}
+
+#[test]
+fn absolute_and_rotate_count_boundaries() {
+    use Command::*;
+    for (mode, input, result, overflow) in [
+        (SignedMode::TwosComplement, 251, 5, false),
+        (SignedMode::TwosComplement, 128, 128, true),
+        (SignedMode::Unsigned, 251, 251, false),
+    ] {
+        for carry in [false, true] {
+            let mut c = Calculator::with_config(config(8, mode)).unwrap();
+            c.execute_all([
+                Push(int(input, 8)),
+                SetFlag {
+                    index: 4,
+                    value: carry,
+                },
+                Absolute,
+            ])
+            .unwrap();
+            assert_eq!(raw(&c), result);
+            assert_eq!(c.snapshot().last_x, int(input, 8));
+            assert_eq!(c.snapshot().flags.carry(), carry);
+            assert_eq!(c.snapshot().flags.out_of_range(), overflow);
+        }
+    }
+    for (kind, count, expected) in [
+        (RotateKind::Left, 0, Some(0x81)),
+        (RotateKind::Left, 255, Some(3)),
+        (RotateKind::Left, 8, Some(0x81)),
+        (RotateKind::Left, 9, None),
+        (RotateKind::LeftCarry, 9, Some(0x81)),
+        (RotateKind::LeftCarry, 10, None),
+    ] {
+        let mut c = Calculator::with_config(config(8, SignedMode::TwosComplement)).unwrap();
+        c.execute_all([
+            Push(int(42, 8)),
+            Push(int(0x81, 8)),
+            Push(int(count, 8)),
+            SetFlag {
+                index: 4,
+                value: true,
+            },
+        ])
+        .unwrap();
+        if let Some(value) = expected {
+            c.execute(RotateN(kind)).unwrap();
+            assert_eq!(c.snapshot().stack, [value, 42, 0, 0].map(|v| int(v, 8)));
+            assert!(c.snapshot().flags.carry());
+        } else {
+            expect_error(&mut c, RotateN(kind), CalcError::InvalidCount);
+        }
+    }
+}
+
+#[test]
+fn core_entry_api_uses_the_common_acceptance_fixture() {
+    use Command::*;
+    let n = |v| int(v, 8);
+    let mut base = Calculator::with_config(CalculatorConfig {
+        radix: Radix::Decimal,
+        ..config(8, SignedMode::TwosComplement)
+    })
+    .unwrap();
+    base.execute_all([
+        Push(n(9)),
+        Absolute,
+        Push(n(7)),
+        Store(0),
+        Push(n(4)),
+        Push(n(3)),
+        Push(n(2)),
+        Push(n(5)),
+    ])
+    .unwrap();
+    for index in [0, 2, 4, 5] {
+        base.execute(SetFlag { index, value: true }).unwrap();
+    }
+    let initial = base.snapshot();
+    assert_eq!(initial.stack, [5, 2, 3, 4].map(n));
+    assert_eq!(initial.last_x, n(9));
+    for enter in [false, true] {
+        for edit in [false, true] {
+            let mut c = base.clone();
+            if enter {
+                c.execute(Enter).unwrap();
+            }
+            if edit {
+                c.update_value(ValueUpdate::Start(n(1))).unwrap();
+                c.update_value(ValueUpdate::ReplaceX(n(12))).unwrap();
+            } else {
+                c.execute(Push(n(3))).unwrap();
+            }
+            let mut expected = initial.clone();
+            expected.stack = [if edit { 12 } else { 3 }, 5, 2, 3].map(n);
+            if edit && enter {
+                expected.stack_lift = StackLift::Disabled;
+            }
+            assert_eq!(c.snapshot(), expected);
+        }
+    }
+    expect_error(
+        &mut base,
+        Push(int(0x123, 16)),
+        CalcError::IntegerOutOfRange,
+    );
+    expect_error(
+        &mut base,
+        Push(Number::Float(f64::NAN)),
+        CalcError::FloatingPointOutOfRange,
+    );
+    expect_error(
+        &mut base,
+        Push(Number::Float(1.0)),
+        CalcError::NumericModeMismatch,
+    );
+    // TEST-048 skips Push(9), IA-C013 skips Push(7).
+    for skipped in [9, 7] {
+        let mut batch = base.clone();
+        assert_eq!(
+            batch.execute_all([Push(n(5)), Push(n(0)), Divide, Push(n(skipped))]),
+            Err(CalcError::DivisionByZero)
+        );
+        let mut committed = initial.clone();
+        committed.stack = [0, 5, 5, 2].map(n);
+        assert_eq!(batch.snapshot(), committed);
+    }
+    let mut detached = base.snapshot();
+    detached.stack[0] = n(0);
+    detached.registers[0] = n(0);
+    detached.flags = Flags::default();
+    assert_ne!(detached, initial);
+    assert_eq!(base.snapshot(), initial);
+    base.execute(Push(n(0))).unwrap();
+    for command in [Divide, Remainder] {
+        expect_error(&mut base, command, CalcError::DivisionByZero);
+    }
+}
+
+#[test]
+fn widen_twos_words_without_sign_extension() {
+    use Command::*;
+    let mut calc = Calculator::with_config(config(8, SignedMode::TwosComplement)).unwrap();
+    let n = int(255, 8);
+    calc.execute_all([
+        Push(n),
+        Absolute,
+        Push(n),
+        Store(0),
+        Push(n),
+        Push(n),
+        Push(n),
+    ])
+    .unwrap();
+    calc.execute(SetWordSize(size(16))).unwrap();
+    let snap = calc.snapshot();
+    assert_eq!(snap.stack, [int(255, 16); 4]);
+    assert_eq!(snap.last_x, int(255, 16));
+    assert_eq!(snap.registers[0], int(255, 16));
+}
+
+#[test]
+fn nonfinite_float_push_preserves_state() {
+    let mut c = Calculator::new();
+    c.execute(Command::SetNumericMode(NumericMode::FloatingPoint))
+        .unwrap();
+    for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        expect_error(
+            &mut c,
+            Command::Push(Number::Float(value)),
+            CalcError::FloatingPointOutOfRange,
+        );
+    }
+}
+
+#[test]
+fn integer_format_width_radix_and_padding_matrix() {
+    for width in [1, 3, 4, 8, 13, 63, 64] {
+        let mask = u64::MAX >> (64 - width);
+        for mode in [
+            SignedMode::Unsigned,
+            SignedMode::TwosComplement,
+            SignedMode::OnesComplement,
+        ] {
+            let mut calc = Calculator::with_config(config(width, mode)).unwrap();
+            for value in [0, 1, mask] {
+                calc.execute(Command::Push(int(value, width))).unwrap();
+                for pad in [false, true] {
+                    calc.execute(Command::SetFlag {
+                        index: 3,
+                        value: pad,
+                    })
+                    .unwrap();
+                    for radix in [
+                        Radix::Binary,
+                        Radix::Octal,
+                        Radix::Hexadecimal,
+                        Radix::Decimal,
+                    ] {
+                        calc.execute(Command::SetRadix(radix)).unwrap();
+                        let before = calc.snapshot();
+                        let expected = match radix {
+                            Radix::Decimal
+                                if value == mask && mode == SignedMode::OnesComplement =>
+                            {
+                                "-0".into()
+                            }
+                            Radix::Decimal
+                                if value == mask && mode == SignedMode::TwosComplement =>
+                            {
+                                "-1".into()
+                            }
+                            Radix::Decimal => value.to_string(),
+                            _ => {
+                                let repr = |v: u64| match radix {
+                                    Radix::Binary => format!("{v:b}"),
+                                    Radix::Octal => format!("{v:o}"),
+                                    Radix::Hexadecimal => format!("{v:X}"),
+                                    Radix::Decimal => unreachable!(),
+                                };
+                                let digits = repr(value);
+                                let len = if pad { repr(mask).len() } else { digits.len() };
+                                format!("{digits:0>len$}")
+                            }
+                        };
+                        assert_eq!(
+                            format_number(
+                                before.stack[0],
+                                radix,
+                                before.numeric_mode,
+                                &before.word_config,
+                                &before.flags
+                            )
+                            .unwrap(),
+                            expected,
+                            "W{width} {value} {mode:?} {radix:?} F3={pad}"
+                        );
+                        assert_eq!(calc.snapshot(), before);
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn word_boundary_addition_matches_signed_range_and_raw_carry() {
+    for width in [1, 2, 4, 8, 16, 32, 63, 64] {
+        let modulus = 1_i128 << width;
+        let mask = modulus - 1;
+        let sign = modulus / 2;
+        for signed in [
+            SignedMode::Unsigned,
+            SignedMode::TwosComplement,
+            SignedMode::OnesComplement,
+        ] {
+            let ones = signed == SignedMode::OnesComplement;
+            let (min, max) = match signed {
+                SignedMode::Unsigned => (0, mask),
+                SignedMode::TwosComplement => (-sign, sign - 1),
+                SignedMode::OnesComplement => (1 - sign, sign - 1),
+            };
+            let decode = |v| {
+                if v < sign || signed == SignedMode::Unsigned {
+                    v
+                } else if ones {
+                    v - mask
+                } else {
+                    v - modulus
+                }
+            };
+            for zero_mode in [OnesZeroMode::Canonical, OnesZeroMode::Raw] {
+                let mut cfg = config(width, signed);
+                cfg.word_config.ones_zero_mode = zero_mode;
+                let mut calc = Calculator::with_config(cfg).unwrap();
+                for y in [0, 1, sign - 1, sign, mask - 1, mask] {
+                    for x in [0, 1, sign - 1, sign, mask - 1, mask] {
+                        let sum = y + x;
+                        let carry = sum > mask;
+                        let mut expected = (sum & mask) + i128::from(ones && carry);
+                        if ones && zero_mode == OnesZeroMode::Canonical && expected == mask {
+                            expected = 0;
+                        }
+                        calc.execute_all([
+                            Command::Push(int(y as u64, width)),
+                            Command::Push(int(x as u64, width)),
+                            Command::Add,
+                        ])
+                        .unwrap();
+                        let s = calc.snapshot();
+                        assert_eq!(
+                            raw(&calc),
+                            expected as u64,
+                            "W{width} {signed:?} {zero_mode:?} {y}+{x}"
+                        );
+                        assert_eq!(s.flags.carry(), carry);
+                        assert_eq!(
+                            s.flags.out_of_range(),
+                            !(min..=max).contains(&(decode(y) + decode(x)))
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn mask_edit_count_and_zero_rotation_keep_flags() {
+    use Command::*;
+    for width in [1, 8, 64] {
+        let mask = u64::MAX >> (64 - width);
+        let high = 1u64 << (width - 1);
+        for carry in [false, true] {
+            for range in [false, true] {
+                let mut c = Calculator::with_config(config(width, SignedMode::Unsigned)).unwrap();
+                c.execute_all([
+                    SetFlag {
+                        index: 4,
+                        value: carry,
+                    },
+                    SetFlag {
+                        index: 5,
+                        value: range,
+                    },
+                ])
+                .unwrap();
+                let flags = c.snapshot().flags;
+                for (op, expected) in [
+                    (MaskLeft(0), 0),
+                    (MaskLeft(width), mask),
+                    (MaskRight(0), 0),
+                    (MaskRight(width), mask),
+                    (
+                        EditBit {
+                            index: width - 1,
+                            edit: BitEdit::Clear,
+                        },
+                        mask ^ high,
+                    ),
+                    (
+                        EditBit {
+                            index: width - 1,
+                            edit: BitEdit::Set,
+                        },
+                        mask,
+                    ),
+                    (CountBits, u64::from(width)),
+                ] {
+                    c.execute(op).unwrap();
+                    assert_eq!(raw(&c), expected, "W{width} {op:?}");
+                    assert_eq!(c.snapshot().flags, flags);
+                }
+                for kind in [
+                    RotateKind::Left,
+                    RotateKind::Right,
+                    RotateKind::LeftCarry,
+                    RotateKind::RightCarry,
+                ] {
+                    c.execute_all([Push(int(high, width)), Push(int(0, width)), RotateN(kind)])
+                        .unwrap();
+                    assert_eq!(raw(&c), high);
+                    assert_eq!(c.snapshot().flags, flags);
+                }
+            }
+        }
+    }
 }

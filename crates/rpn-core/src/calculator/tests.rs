@@ -30,3 +30,15 @@ fn invalid_actual_state_precedes_command_validation() {
     );
     assert_eq!(calc.snapshot(), before);
 }
+
+#[test]
+fn invalid_flags_precede_zero_divisor() {
+    let mut calc = Calculator::new();
+    calc.state.flags = crate::Flags::with_invalid_upper_bit();
+    let before = calc.snapshot();
+    assert_eq!(
+        calc.execute(Command::Divide),
+        Err(CalcError::InvariantViolation)
+    );
+    assert_eq!(calc.snapshot(), before);
+}

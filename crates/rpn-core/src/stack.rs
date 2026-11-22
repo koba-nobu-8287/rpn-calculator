@@ -75,3 +75,38 @@ impl RpnStack {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn direct_stack_operations_preserve_history() {
+        let n = Number::Float;
+        let initial = RpnStack {
+            values: [1., 2., 3., 4.].map(n),
+            last_x: n(7.),
+        };
+        for (op, expected) in [
+            (RpnStack::lift as fn(&mut RpnStack), [1., 1., 2., 3.]),
+            (RpnStack::drop_stack, [2., 3., 4., 4.]),
+            (RpnStack::swap_xy, [2., 1., 3., 4.]),
+            (RpnStack::roll_up, [4., 1., 2., 3.]),
+            (RpnStack::roll_down, [2., 3., 4., 1.]),
+        ] {
+            let mut s = initial;
+            op(&mut s);
+            assert_eq!(s.values(), expected.map(n));
+            assert_eq!(s.last_x(), n(7.));
+        }
+        let mut s = initial;
+        s.roll_up();
+        s.roll_down();
+        assert_eq!(s.values(), initial.values());
+        assert_eq!(s.last_x(), initial.last_x());
+        s.set_x(n(3.));
+        let before = s.values();
+        s.set_last_x(s.x());
+        assert_eq!(s.last_x(), n(3.));
+        assert_eq!(s.values(), before);
+    }
+}

@@ -116,7 +116,7 @@ fn float_grammar_and_bits() {
             n.to_bits()
         );
     }
-    for s in ["1e-", "NaN", "-Inf", "0x1", ".", "1_0", "+", "1e2e3"] {
+    for s in ["1e-", "NaN", "Inf", "-Inf", "0x1", ".", "1_0", "+", "1e2e3"] {
         assert_eq!(parse_literal(s, c), Err(LiteralError::InvalidNumber));
     }
     assert_eq!(
